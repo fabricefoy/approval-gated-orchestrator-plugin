@@ -1,0 +1,29 @@
+{
+  "name": "approval-gated-orchestrator",
+  "version": "0.1.4",
+  "description": "Approval-gated multi-agent orchestration with cost-aware routing and duplicate-task reuse.",
+  "author": {
+    "name": "ZeroSpacePirate"
+  },
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "model-routing",
+    "approval-gates",
+    "multi-agent"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Approval Gated Orchestrator",
+    "shortDescription": "Route bounded work through explicit approvals.",
+    "longDescription": "Prepare frozen executor prompts, select cost-aware execution routes, reuse matching tasks, and verify results without crossing owner authorization boundaries.",
+    "developerName": "ZeroSpacePirate",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "Use $approval-gated-orchestrator to prepare the next bounded task."
+    ]
+  }
+}

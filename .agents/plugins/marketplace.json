@@ -1,0 +1,20 @@
+{
+  "name": "approval-gated-orchestrator",
+  "interface": {
+    "displayName": "Approval Gated Orchestrator"
+  },
+  "plugins": [
+    {
+      "name": "approval-gated-orchestrator",
+      "source": {
+        "source": "local",
+        "path": "./plugins/approval-gated-orchestrator"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

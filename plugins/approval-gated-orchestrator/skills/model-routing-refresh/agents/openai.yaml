@@ -1,0 +1,7 @@
+interface:
+  display_name: "Model Routing Refresh"
+  short_description: "Refresh the dated model-routing guide"
+  default_prompt: "Use $model-routing-refresh to refresh my authorized model-routing guide."
+
+policy:
+  allow_implicit_invocation: true

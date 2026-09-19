@@ -1,0 +1,7 @@
+interface:
+  display_name: "Approval-Gated Orchestrator"
+  short_description: "Route bounded work through explicit approvals"
+  default_prompt: "Use $approval-gated-orchestrator to prepare and govern the next bounded project task."
+
+policy:
+  allow_implicit_invocation: true
