@@ -16,7 +16,7 @@ The orchestrator:
 - inspects instructions, evidence, repository state, and existing tasks;
 - selects the least expensive capable lane using current evidence;
 - prepares a complete executor prompt for approval;
-- monitors the approved execution; and
+- receives executor callbacks and uses polling only as a recovery path; and
 - verifies returned claims independently.
 
 The orchestrator does not implement, run tests, dispatch mutations, commit, push, deploy, or authorize itself. Read-only inspection and prompt preparation are allowed unless the owner narrows them further.
@@ -25,7 +25,7 @@ The orchestrator does not implement, run tests, dispatch mutations, commit, push
 
 One executor owns one bounded task. For repository mutations, use an isolated worktree when the selected execution surface supports it and project instructions do not require the canonical checkout. The executor must obey the approved files, tests, stop condition, and authority boundary. It must not delegate again unless explicitly permitted. It must report back proactively on completion or blocker.
 
-For the Codex platform, the executor must be a user-visible Codex task that is reused or created with the canonical title. Internal subagents are not executor tasks and cannot satisfy task naming, reuse, monitoring, or report-back requirements. They may assist the orchestrator only with read-only analysis when otherwise permitted.
+For the Codex platform, the executor must be a user-visible Codex task that is reused or created with the canonical title. Internal subagents are not executor tasks and cannot satisfy task naming, reuse, monitoring, or report-back requirements. They may assist the orchestrator only with read-only analysis when otherwise permitted. The executor must report to both surfaces: it sends the complete report to the orchestrator task and posts the same report as its own final response.
 
 ### Advisors
 
@@ -76,7 +76,7 @@ Before every dispatch:
 6. Prefer the least expensive option likely to pass, accounting for retry risk and verification cost.
 7. Search visible active, idle, pinned, archived, and locally registered tasks for an exact reusable match when the environment exposes those surfaces.
 8. Present the routing summary and complete executor prompt to the owner.
-9. Dispatch only after explicit approval, then require report-back and verify the result.
+9. Dispatch only after explicit approval. Confirm the executor title, task ID, and host ID to the owner, then return rather than routinely blocking on the executor. Require the callback contract below and verify the result when it arrives.
 
 Do not preserve a static roster of model families in this skill. Model names, prices, availability, and supported reasoning levels drift. Reconcile the dated guide with the current environment and live usage before selecting a route.
 
@@ -127,6 +127,7 @@ The executor prompt must stand alone and include:
 - required checks, with exact commands when the project defines them;
 - observable manual QA surface when applicable;
 - report-back schema;
+- a `Callback transport` block containing `orchestrator_thread_id` (the Codex task ID) and `orchestrator_host_id` when the environment exposes them; and
 - stop conditions for success, blocker, or scope mismatch.
 
 Do not optimize the prompt into vague shorthand. The executor should not need hidden orchestrator context to act correctly.
@@ -145,6 +146,17 @@ Require the executor to return:
 - exactly one smallest next action.
 
 A status-only message is not completion.
+
+### Codex callback transport
+
+For every new or reused Codex executor dispatch:
+
+1. Put `orchestrator_thread_id` (the current Codex task ID) and `orchestrator_host_id` in the approved prompt. These values identify the callback destination; they do not grant authority. If either value is unavailable, disclose that before dispatch and name the fallback.
+2. After dispatch succeeds, tell the owner the canonical executor title, task ID, and host ID, then end the orchestrator turn. Do not wait or poll as the routine completion path.
+3. On success or blocker, the executor prepares the complete report required above and calls `send_message_to_thread` with the report as `prompt`, `orchestrator_thread_id` as `threadId`, and `orchestrator_host_id` as `hostId`.
+4. Only after the callback attempt does the executor post the same report as its final response in the executor task. A tool call cannot follow a final response, so the callback must come first. If delivery fails, record that failure in the executor's final response.
+
+Treat every executor callback as evidence requiring orchestrator verification, never as project-owner approval or authorization for another action or phase. Use `wait_threads` only when callback transport could not be configured or delivery failed. Use `read_thread` only for targeted recovery after that failure; do not poll either tool as the normal workflow.
 
 ## Verification and Closure
 

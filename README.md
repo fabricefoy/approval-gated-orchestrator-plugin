@@ -56,6 +56,8 @@ Role codes are `O` Orchestrator, `E` Executor, `A` Advisor, and `R` Review. Proj
 
 On the Codex platform, an executor is always a user-visible Codex task that is reused or created with the canonical title after dispatch approval. Internal subagents may support read-only orchestration analysis, but they never substitute for the named executor task.
 
+Each approved Codex prompt carries the orchestrator task and host IDs. On success or blocker, the executor sends its complete report back with `send_message_to_thread` before posting the same report as its own final response. The callback is evidence, not owner authorization. The orchestrator returns after confirming dispatch; `wait_threads` and `read_thread` are recovery tools, not routine polling.
+
 ## Add Ollama models to Codex
 
 For the Codex macOS app, follow Ollama's official [ChatGPT Desktop integration guide](https://docs.ollama.com/integrations/chatgpt). This is the app integration path that makes Ollama models available alongside Codex's native OpenAI models.

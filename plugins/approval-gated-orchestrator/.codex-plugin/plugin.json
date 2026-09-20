@@ -1,6 +1,6 @@
 {
   "name": "approval-gated-orchestrator",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Approval-gated multi-agent orchestration with cost-aware routing and duplicate-task reuse.",
   "author": {
     "name": "ZeroSpacePirate"
