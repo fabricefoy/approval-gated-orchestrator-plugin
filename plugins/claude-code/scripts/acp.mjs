@@ -9,6 +9,7 @@
 
 import { spawn, execFileSync } from 'node:child_process';
 import http from 'node:http';
+import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -118,6 +119,12 @@ function pickOption(options, decision) {
   return byKind('reject_once') || byKind('reject_always');
 }
 
+const freePort = () => new Promise((resolve, reject) => {
+  const srv = net.createServer();
+  srv.on('error', reject);
+  srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => resolve(port)); });
+});
+
 const inside = (root, p) => {
   const rel = path.relative(path.resolve(root), path.resolve(p));
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
@@ -153,7 +160,14 @@ async function daemon(id) {
   const save = () => { refresh(); state.seq = seq; state.pending = pending.size; writeJson(path.join(dir, 'state.json'), state); };
 
   const { cmd, args, env } = AGENTS[cfg.agent]();
-  const child = spawn(cmd, [...args, ...(cfg.agentArgs || [])], {
+  const agentArgs = [...args, ...(cfg.agentArgs || [])];
+  // OpenCode renames sessions only through its HTTP server, so pin that server to a known port.
+  if (cfg.agent === 'opencode') {
+    const i = agentArgs.indexOf('--port');
+    if (i < 0) { state.agentHttpPort = await freePort(); agentArgs.push('--port', String(state.agentHttpPort)); }
+    else state.agentHttpPort = Number(agentArgs[i + 1]);
+  }
+  const child = spawn(cmd, agentArgs, {
     cwd: cfg.cwd, env: { ...process.env, ...env, ...policyEnv(cfg.agent, cfg.policy) }, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
   });
   state.agentPid = child.pid;
@@ -218,8 +232,8 @@ async function daemon(id) {
     if (replaying) { replaying++; if (u.sessionUpdate === 'config_option_update') setOptions(u.configOptions); return; }
     switch (u.sessionUpdate) {
       case 'config_option_update': setOptions(u.configOptions); save(); break;
-      case 'usage_update':
-      case 'session_info_update': break;
+      case 'session_info_update': if (u.title) state.nativeTitle = u.title; break;
+      case 'usage_update': break;
       case 'agent_message_chunk': if (u.content?.type === 'text') log('message', { text: u.content.text }); break;
       case 'agent_thought_chunk': if (u.content?.type === 'text') log('thought', { text: u.content.text }); break;
       case 'tool_call': {
@@ -336,7 +350,7 @@ async function daemon(id) {
           request('session/prompt', { sessionId: state.sessionId, prompt: [{ type: 'text', text: b.text }] })
             .then(r => log('turn_end', { turn, stopReason: r?.stopReason }))
             .catch(e => log('turn_end', { turn, error: e.message }))
-            .finally(() => { state.busy = false; save(); });
+            .finally(async () => { await keepTitle(); state.busy = false; save(); });
           return send(200, { turn, since });
         }
         case 'POST /permission': {
@@ -358,6 +372,14 @@ async function daemon(id) {
         case 'POST /config':
           if (state.busy) return send(409, { error: 'cannot change config while a turn is running' });
           return send(200, { value: await setConfig(b.configId, b.value) });
+        case 'POST /title': {
+          cfg.title = b.title;
+          writeJson(path.join(dir, 'config.json'), cfg);
+          const native = await setNativeTitle(b.title);
+          log('title', { title: b.title, native });
+          save();
+          return send(200, { native });
+        }
         case 'POST /stop':
           send(200, { ok: true });
           log('stopped');
@@ -371,6 +393,34 @@ async function daemon(id) {
       return send(500, { error: e.message });
     }
   });
+  // Session titles: set in the agent's own session list where it supports renaming
+  // (Devin: _cognition.ai/session/rename; OpenCode: PATCH /session/:id on its HTTP server).
+  // Cursor has no rename, so its title lives only in the bridge.
+  let agentMeta = {};
+  const setNativeTitle = async title => {
+    if (cfg.agent === 'devin' && agentMeta['cognition.ai/sessionRename']) {
+      await request('_cognition.ai/session/rename', { sessionId: state.sessionId, title });
+    } else if (cfg.agent === 'opencode' && state.agentHttpPort) {
+      const url = `http://127.0.0.1:${state.agentHttpPort}/session/${state.sessionId}?directory=${encodeURIComponent(cfg.cwd)}`;
+      const r = await fetch(url, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title }) });
+      if (!r.ok) throw new Error(`opencode rename: HTTP ${r.status}`);
+    } else return false;
+    state.nativeTitle = title;
+    return true;
+  };
+  // Agents may auto-title a session from its first prompt; put the canonical title back.
+  const keepTitle = async () => {
+    if (!cfg.title || !state.nativeTitle) return;
+    let current = state.nativeTitle;
+    if (cfg.agent === 'opencode') {
+      try {
+        const r = await fetch(`http://127.0.0.1:${state.agentHttpPort}/session/${state.sessionId}?directory=${encodeURIComponent(cfg.cwd)}`);
+        current = (await r.json()).title;
+      } catch { return; }
+    }
+    if (current !== cfg.title) await setNativeTitle(cfg.title).catch(() => {});
+  };
+
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   state.port = server.address().port;
   save();
@@ -384,6 +434,7 @@ async function daemon(id) {
     });
     state.agentInfo = init?.agentInfo;
     state.agentCapabilities = init?.agentCapabilities;
+    agentMeta = init?.agentCapabilities?._meta || {};
     const newSession = async () => {
       if (!cfg.resume) return request('session/new', { cwd: cfg.cwd, mcpServers: [] });
       if (!init?.agentCapabilities?.loadSession) throw new Error(`${cfg.agent} does not support session/load; start a new session`);
@@ -411,6 +462,10 @@ async function daemon(id) {
     const mode = cfg.mode || DEFAULT_MODE[cfg.agent]?.[cfg.policy];
     if (mode) await setConfig('mode', mode);
     if (cfg.model) await setConfig('model', cfg.model);
+    if (cfg.title) {
+      const native = await setNativeTitle(cfg.title).catch(e => { log('title_error', { message: e.message }); return false; });
+      log('title', { title: cfg.title, native });
+    }
     state.status = 'idle';
     log('ready', { sessionId: state.sessionId, agent: state.agentInfo });
     save();
@@ -564,6 +619,8 @@ async function cmdStart({ pos, flags, passthrough }) {
       console.log(`cwd: ${cwd}`);
       for (const [k, o] of Object.entries(st.config || {}))
         console.log(`${k}: ${o.current}  (${o.values.length} values: acp options ${id})`);
+      const title = readJson(path.join(sessDir(id), 'config.json'), {}).title;
+      if (title) console.log(`title: "${title}"${st.nativeTitle === title ? '' : ' (bridge only: this agent cannot rename sessions)'}`);
       if (agent === 'cursor' && st.config?.mode?.current === 'agent' && policy !== 'yolo')
         console.log(`note: cursor's 'agent' mode applies file edits without asking; only shell commands reach the '${policy}' policy. Use a worktree.`);
       return;
@@ -604,6 +661,7 @@ const HELP = `acp - drive ACP agents (devin | opencode | cursor) from the shell
   acp approve <id> <req> [--always] [--option OPTION_ID]
   acp deny <id> <req>        acp cancel <id>
   acp options <id> [filter]  list config options (mode, model, ...) and their values
+  acp title <id> <text>      set the session title (also in the agent's own list for devin and opencode)
   acp mode <id> <value>      acp model <id> <value>       acp set <id> <configId> <value>
                              (values match by unique substring, e.g. 'glm-5.2')
   acp stop <id> [--remove-worktree]
@@ -660,6 +718,10 @@ async function main() {
       return console.log(`req ${a.pos[1]} -> ${r.choice}`);
     }
     case 'cancel': await api(id, 'POST', '/cancel'); return console.log(`cancelled current turn on ${id}`);
+    case 'title': {
+      const r = await api(id, 'POST', '/title', { title: a.pos.slice(1).join(' ') });
+      return console.log(`title -> ${a.pos.slice(1).join(' ')}${r.native ? '' : ' (bridge only: this agent cannot rename sessions)'}`);
+    }
     case 'mode':
     case 'model': {
       const r = await api(id, 'POST', '/config', { configId: cmd, value: a.pos.slice(1).join(' ') });
@@ -685,11 +747,16 @@ async function main() {
         const cfg = readJson(path.join(HOME, s, 'config.json'), {});
         const st = readJson(path.join(HOME, s, 'state.json'), {});
         const status = st.pid && alive(st.pid) ? st.status : 'dead';
-        rows.push({ id: s, agent: cfg.agent, status, policy: cfg.policy, title: cfg.title || '', sessionId: st.sessionId || '', cwd: cfg.cwd });
+        rows.push({
+          id: s, agent: cfg.agent, status, policy: cfg.policy, title: cfg.title || '',
+          nativeTitle: st.nativeTitle ?? null,
+          model: st.config?.model?.current ?? null, mode: st.config?.mode?.current ?? null,
+          sessionId: st.sessionId || '', cwd: cfg.cwd,
+        });
       }
       if (a.flags.json) return console.log(JSON.stringify(rows, null, 2));
       for (const r of rows)
-        console.log(`${r.id.padEnd(24)} ${String(r.agent).padEnd(9)} ${String(r.status).padEnd(19)} ${String(r.policy).padEnd(9)} ${r.title ? `"${r.title}" ` : ''}${r.cwd}  [${r.sessionId}]`);
+        console.log(`${r.id.padEnd(24)} ${String(r.agent).padEnd(9)} ${String(r.status).padEnd(19)} ${String(r.policy).padEnd(9)} model=${r.model ?? '?'} mode=${r.mode ?? '-'}  ${r.title ? `"${r.title}"${r.nativeTitle === r.title ? '' : ' (bridge only)'} ` : ''}${r.cwd}  [${r.sessionId}]`);
       return;
     }
     case 'doctor': return doctor(a.flags);
