@@ -45,7 +45,7 @@ Start a new session after installing. The agent CLIs are optional and are **neve
 /approval-gated-orchestrator:orchestrate Add input validation to the export command. Prepare the executor prompt; do not dispatch until I approve.
 ```
 
-Executors are titled `<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>`, for example `E|GLM 5.2 [High]|Ollama|OpenCode`. Before creating an executor, the orchestrator reuses a running or stopped session with the same identity (`acp start --resume` reloads a stopped agent's history).
+Executors are titled `<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>`, for example `E|GLM 5.2 [High]|Ollama|OpenCode`. Before creating an executor, the orchestrator must reuse a running or stopped session with the same identity, matched against the session's live model (`acp list --json`). `acp start --resume` reloads a stopped agent's history. Titles also appear in Devin's and OpenCode's own session lists; Cursor cannot rename sessions, so its titles live only in the bridge.
 
 ACP permission policies: `read-only` (advisors, reviews), `ask` (default; edits and commands wait for the orchestrator, which approves only what the frozen prompt authorizes and escalates the rest to you), `edits`, and `yolo`. Per-agent caveats are documented in [`acp-lanes.md`](plugins/claude-code/skills/orchestrate/references/acp-lanes.md). The main one: Cursor applies file edits without asking, so Cursor executors always get a worktree.
 

@@ -1,7 +1,7 @@
 {
   "name": "approval-gated-orchestrator",
   "displayName": "Approval-Gated Orchestrator",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Approval-gated, cost-aware orchestration for Claude Code: route bounded tasks to Claude subagents or to Devin, OpenCode and Cursor agents over ACP, gate their permissions, and verify their reports.",
   "author": {
     "name": "ZeroSpacePirate"
