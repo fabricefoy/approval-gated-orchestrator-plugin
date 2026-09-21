@@ -1,0 +1,15 @@
+{
+  "name": "approval-gated-orchestrator",
+  "owner": {
+    "name": "ZeroSpacePirate"
+  },
+  "description": "Approval-gated multi-agent orchestration for Claude Code, with Devin, OpenCode and Cursor executors over ACP.",
+  "plugins": [
+    {
+      "name": "approval-gated-orchestrator",
+      "source": "./plugins/claude-code",
+      "description": "Approval-gated, cost-aware orchestration: Claude subagents plus Devin, OpenCode and Cursor agents over ACP, with permission gating and independent verification.",
+      "category": "productivity"
+    }
+  ]
+}
