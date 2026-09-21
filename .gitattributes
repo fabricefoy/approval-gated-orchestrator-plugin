@@ -1,0 +1,6 @@
+# Shell scripts must keep LF endings or their shebangs break (including in plugin installs on Windows).
+*.sh                          text eol=lf
+*.mjs                         text eol=lf
+plugins/claude-code/bin/acp   text eol=lf
+*.cmd                         text eol=crlf
+*.ps1                         text eol=crlf
