@@ -1,0 +1,22 @@
+{
+  "name": "approval-gated-orchestrator",
+  "displayName": "Approval-Gated Orchestrator",
+  "version": "0.2.1",
+  "description": "Approval-gated, cost-aware orchestration for Claude Code: route bounded tasks to Claude subagents or to Devin, OpenCode and Cursor agents over ACP, gate their permissions, and verify their reports.",
+  "author": {
+    "name": "ZeroSpacePirate"
+  },
+  "homepage": "https://github.com/fabricefoy/approval-gated-orchestrator-plugin",
+  "repository": "https://github.com/fabricefoy/approval-gated-orchestrator-plugin",
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "model-routing",
+    "approval-gates",
+    "multi-agent",
+    "acp",
+    "devin",
+    "opencode",
+    "cursor"
+  ]
+}

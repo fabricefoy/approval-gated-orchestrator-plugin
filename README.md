@@ -1,6 +1,63 @@
-# Approval-Gated Orchestrator for Codex
+# Approval-Gated Orchestrator
 
-An installable Codex plugin for approval-gated, cost-aware project orchestration.
+Installable plugins for approval-gated, cost-aware project orchestration, for **Claude Code** and **Codex**. The orchestrator prepares a frozen executor prompt, routes it to the cheapest capable lane, waits for the owner's approval before dispatching, gates what the executor may do, and verifies the report independently.
+
+| Platform | Plugin directory | Marketplace manifest |
+|---|---|---|
+| Claude Code | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
+| Codex | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
+
+# Claude Code
+
+## Included
+
+- `/approval-gated-orchestrator:orchestrate`: plans, routes, and dispatches one bounded task at a time, then verifies the report. Executors are Claude Code subagents or **Devin, OpenCode and Cursor agents driven over ACP** (Agent Client Protocol).
+- `/approval-gated-orchestrator:model-routing-refresh`: refreshes a user- or project-owned copy of the dated routing guide when explicitly authorized.
+- `/approval-gated-orchestrator:setup`: checks Node.js, git, and the agent CLIs, and explains how to fix what's missing.
+- `acp` (`scripts/acp.mjs`, with `bin/acp` and `bin/acp.cmd` shortcuts): a dependency-free Node.js ACP client. The skills call it through `${CLAUDE_PLUGIN_ROOT}`, so it works whether or not the plugin's `bin/` is on `PATH`. It starts agent sessions (optionally in git worktrees), sends prompts, streams tool calls, and lets the orchestrator approve or deny each permission request.
+
+## Install
+
+Requirements: Claude Code, Node.js 20+, and git. The installers check them, add this repository as a plugin marketplace, install the plugin, and report which agents are available:
+
+```powershell
+./install.ps1            # Windows, from GitHub
+./install.ps1 -Local     # Windows, from this clone
+```
+
+```bash
+./install.sh             # macOS / Linux, from GitHub
+./install.sh --local     # macOS / Linux, from this clone
+```
+
+Or install manually from inside Claude Code:
+
+```text
+/plugin marketplace add fabricefoy/approval-gated-orchestrator-plugin
+/plugin install approval-gated-orchestrator@approval-gated-orchestrator
+```
+
+Start a new session after installing. The agent CLIs are optional and are **never installed by this plugin**. Each has its own login and billing: [Devin](https://docs.devin.ai), [OpenCode](https://opencode.ai/docs), [Cursor CLI](https://cursor.com/cli). Claude Code subagent lanes work without any of them.
+
+## Use
+
+```text
+/approval-gated-orchestrator:orchestrate Add input validation to the export command. Prepare the executor prompt; do not dispatch until I approve.
+```
+
+Executors are titled `<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>`, for example `E|GLM 5.2 [High]|Ollama|OpenCode`. Before creating an executor, the orchestrator reuses a running or stopped session with the same identity (`acp start --resume` reloads a stopped agent's history).
+
+ACP permission policies: `read-only` (advisors, reviews), `ask` (default; edits and commands wait for the orchestrator, which approves only what the frozen prompt authorizes and escalates the rest to you), `edits`, and `yolo`. Per-agent caveats are documented in [`acp-lanes.md`](plugins/claude-code/skills/orchestrate/references/acp-lanes.md). The main one: Cursor applies file edits without asking, so Cursor executors always get a worktree.
+
+## Validate
+
+```bash
+claude plugin validate plugins/claude-code --strict
+claude plugin validate . --strict
+node plugins/claude-code/scripts/acp.mjs doctor --handshake
+```
+
+# Codex
 
 ## Included
 
