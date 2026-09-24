@@ -1,5 +1,5 @@
 Date: 2026-09-19
-Version: 1.11
+Version: 1.12
 
 # Model Prompting and Routing Guide
 
@@ -221,7 +221,7 @@ Performance is the expected result for the selected capability, not a global mod
 
 ### Cross-platform task reuse and naming
 
-Before creating a task or session, search active, idle, pinned, archived, and locally registered tasks. Reuse, resume, or unarchive an exact match; never create a duplicate. The reuse identity is execution platform, provider or backend route, exact model, reasoning level, exact project, and role. Name it `<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>`, using `O` for Orchestrator, `E` for Executor, `A` for Advisor, and `R` for Review. Examples are `O|GPT-6 Astra [High]|OpenAI|Codex`, `E|GLM 5.3 [High]|Ollama|Codex`, and `E|GLM 5.3 [High]|Ollama|OpenCode`. Codex project folders provide the visible project context, but the saved project identity or canonical path remains part of duplicate detection. If a platform does not expose routing details, use a truthful managed label instead of inventing them.
+Before creating a task or session, search active, idle, pinned, archived, and locally registered tasks. Reuse, resume, or unarchive an exact match; never create a duplicate. The reuse identity is execution platform, provider or backend route, exact model, reasoning level, exact project, and role. Use `⭐O|<Model> [<Reasoning>]|<Route>|<Platform>` for orchestrators, `💡A|<Model> [<Reasoning>]|<Route>|<Platform>` for advisors, and the unprefixed `<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>` form for executors and reviews. The emoji immediately precedes `O` or `A` with no space. Examples are `⭐O|GPT-6 Astra [High]|OpenAI|Codex`, `💡A|GPT-6 Astra [High]|OpenAI|Codex`, `E|GLM 5.3 [High]|Ollama|Codex`, and `E|GLM 5.3 [High]|Ollama|OpenCode`. The emoji is visible-title metadata, not part of reuse identity; reuse and rename an otherwise exact legacy task rather than creating a duplicate. Codex project folders provide the visible project context, but the saved project identity or canonical path remains part of duplicate detection. If a platform does not expose routing details, use a truthful managed label instead of inventing them.
 
 ## Part 3: Refresh and Maintenance
 
@@ -243,7 +243,7 @@ Hard rules:
 1. Select the lowest-cost platform, route, model, and reasoning level likely to meet the acceptance criteria. Escalate only after a concrete capability failure.
 2. Missing or ambiguous usage is unknown, never zero.
 3. Search all available task surfaces before creation. Reuse, resume, or unarchive an exact match; never create a duplicate.
-4. Use `<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>`. Project identity remains part of reuse matching but stays out of the visible title.
+4. Use `⭐O|...` for orchestrators, `💡A|...` for advisors, and unprefixed `E|...` or `R|...` for executors and reviews. Project identity remains part of reuse matching but stays out of the visible title.
 5. Preserve task and session IDs. Never resubmit merely because a wait timed out.
 6. Do not install, start, repair, or reconfigure an optional integration without authorization.
 7. Before off-machine work, inspect the exact transmitted state for secrets and unrelated changes and obtain explicit authorization.

@@ -46,13 +46,16 @@ codex plugin add approval-gated-orchestrator@approval-gated-orchestrator
 Use $approval-gated-orchestrator to inspect this project and prepare the next executor prompt. Do not dispatch until I approve it.
 ```
 
-The canonical task-title format is:
+The canonical task-title formats are:
 
 ```text
-<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>
+⭐O|<Model> [<Reasoning>]|<Route>|<Platform>
+💡A|<Model> [<Reasoning>]|<Route>|<Platform>
+E|<Model> [<Reasoning>]|<Route>|<Platform>
+R|<Model> [<Reasoning>]|<Route>|<Platform>
 ```
 
-Role codes are `O` Orchestrator, `E` Executor, `A` Advisor, and `R` Review. Project identity remains part of duplicate detection but is omitted from the visible title.
+Role codes are `O` Orchestrator, `E` Executor, `A` Advisor, and `R` Review. `⭐` is mandatory immediately before `O`, and `💡` is mandatory immediately before `A`; executor and review titles have no emoji prefix. Project identity remains part of duplicate detection but is omitted from the visible title. A missing marker on a legacy matching task does not justify a duplicate; reuse and rename it when possible.
 
 On the Codex platform, an executor is always a user-visible Codex task that is reused or created with the canonical title after dispatch approval. Internal subagents may support read-only orchestration analysis, but they never substitute for the named executor task.
 
