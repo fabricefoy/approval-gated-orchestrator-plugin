@@ -74,7 +74,7 @@ Before every dispatch:
 2. Read the routing guide selected by the main skill's Canonical Model Routing precedence. Use its provider-neutral prompt structure, capability classification, performance/cost matrix, model-specific prompting notes, lane requirements, and limitations.
 3. Identify one bounded task with an observable completion condition.
 4. Classify difficulty, duration, modality, failure cost, data sensitivity, context size, and tool requirements.
-5. Inspect available lanes (`acp doctor`), models (`acp options`), reasoning levels, and current usage. If live usage cannot be obtained, label it unknown and do not optimize as though it were free.
+5. Inspect available lanes (`acp doctor`), models (`acp options`), reasoning levels, and current usage (`acp usage --json`). If live usage cannot be obtained, label it unknown and do not optimize as though it were free. A lane near a limit (for example a 5-hour window almost used) is a routing constraint: prefer another lane or wait for the reset rather than starting a long task that may be cut off.
 6. Prefer the least expensive option likely to pass, accounting for retry risk and verification cost.
 7. Search running subagents and `acp list --json` for an exact reusable match.
 8. Present the routing summary and complete executor prompt to the owner.
