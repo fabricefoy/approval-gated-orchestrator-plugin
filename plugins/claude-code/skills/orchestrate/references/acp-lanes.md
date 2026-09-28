@@ -90,12 +90,12 @@ Rule: **the CodexBar CLI first, then each provider's own method.** `acp usage --
 2. **The provider's own method**, only for lanes CodexBar did not report:
    - Claude Code: `claude -p /usage` (session and weekly limits).
    - Antigravity: `agy -p /usage --output-format stream-json` (remaining quota per model group).
-   - Devin: `devin -p /usage`; some Devin versions support `/usage` only inside a session. If the lane is still unknown and a Devin session is running, send `/usage` in it (`acp prompt <id> "/usage" --wait`).
+   - Devin: none the bridge can run. Devin's `/usage` shows the current session's credits and ACUs, but only in its interactive terminal UI; headless (`devin -p`) and ACP sessions answer "Unknown command". Set the Devin organization in CodexBar (its Devin provider settings or `DEVIN_ORG`) to get Devin's account usage. The owner can still run `/usage` in an interactive Devin session.
    - OpenCode: `opencode stats --days N --models`, OpenCode's local token and list-price cost estimates. These are not a provider quota.
    - Cursor: none. Cursor's CLI has no usage command, so only CodexBar can report it.
 3. Otherwise the lane is **unknown**: never zero, and never routed as though it were free.
 
-The check takes a few seconds when CodexBar reports every lane, and up to about a minute when provider fallbacks run. Setting a provider up in CodexBar (for example signing in Antigravity, or giving Devin its organization) makes that lane fast and consistent across machines.
+The check takes a few seconds when CodexBar reports every lane, and up to about a minute when provider fallbacks run. Setting a provider up in CodexBar (for example signing in Antigravity, or giving Devin its organization) makes that lane fast and consistent across machines; for Devin it is the only automatic source.
 
 Each bridge session also records its own usage, shown in `acp list` and under `sessions` in `acp usage`: tokens accumulated per turn for `agy`; cumulative tokens, cache, context and cost for OpenCode; context-window use (and Devin's per-call tokens in the JSON) for Devin. Cursor reports nothing per session.
 

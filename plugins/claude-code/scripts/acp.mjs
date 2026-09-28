@@ -963,17 +963,9 @@ const NATIVE_USAGE = {
     }
     return { ok: false, method: 'agy -p /usage', error: 'no usage data in the output' };
   },
-  // Devin's /usage exists only in some CLI versions and surfaces; whatever it prints is passed on.
-  async devin() {
-    let out;
-    try {
-      const r = await execFileAsync(which('devin'), ['-p', '/usage'], { encoding: 'utf8', timeout: 120000, windowsHide: true, cwd: os.tmpdir(), env: { ...process.env, NO_COLOR: '1' } });
-      out = `${r.stdout}\n${r.stderr}`;
-    } catch (e) { out = `${e.stdout || ''}\n${e.stderr || e.message}`; }
-    out = stripAnsi(out).trim();
-    if (!out || /unknown command/i.test(out)) return { ok: false, method: 'devin -p /usage', error: `not available in this Devin CLI (${out.split('\n')[0] || 'no output'}); try /usage inside a running Devin session` };
-    return { ok: true, method: 'devin -p /usage', text: out.slice(0, 2000) };
-  },
+  // Devin: /usage exists only in the interactive terminal UI and shows the current session's
+  // credits/ACUs; headless (`devin -p`) and ACP sessions answer "Unknown command", and
+  // `devin -p` would also create a session on every check. Account usage comes from CodexBar.
   async opencode(days) {
     const out = stripAnsi(await runQuiet(AGENTS.opencode().cmd, ['--pure', 'stats', '--days', String(days), '--models'], 180000));
     const totals = {};
