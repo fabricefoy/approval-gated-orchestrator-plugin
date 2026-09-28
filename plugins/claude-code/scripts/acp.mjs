@@ -8,7 +8,7 @@
 // line). agy has no ACP server, so it runs one print-mode process per turn, gated by a hook.
 // No dependencies; Node >= 20.
 
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, execFile, execFileSync } from 'node:child_process';
 import http from 'node:http';
 import net from 'node:net';
 import fs from 'node:fs';
@@ -17,6 +17,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 
 const SELF = fileURLToPath(import.meta.url);
 const HOME = process.env.ACP_HOME || path.join(os.homedir(), '.claude', 'acp-bridge', 'sessions');
@@ -248,7 +249,7 @@ async function daemon(id) {
           driver.prompt(b.text)
             .then(r => log('turn_end', { turn, stopReason: r?.stopReason, ...(r?.denied?.length ? { denied: r.denied } : {}) }))
             .catch(e => log('turn_end', { turn, error: e.message }))
-            .finally(async () => { await driver.keepTitle(); state.busy = false; save(); });
+            .finally(async () => { await driver.keepTitle(); await driver.refreshUsage(); state.busy = false; save(); });
           return send(200, { turn, since });
         }
         case 'POST /permission': {
@@ -399,7 +400,15 @@ function acpDriver({ cfg, state, log, save, errFd, requestPermission }) {
     switch (u.sessionUpdate) {
       case 'config_option_update': setOptions(u.configOptions); save(); break;
       case 'session_info_update': if (u.title) state.nativeTitle = u.title; break;
-      case 'usage_update': break;
+      case 'usage_update': {
+        const m = u._meta || {};
+        state.usage = { ...(state.usage || {}) };
+        if (u.size) state.usage.context = { used: u.used, size: u.size };
+        if (u.cost?.amount != null) Object.assign(state.usage, { cost: u.cost.amount, currency: u.cost.currency });
+        if (m['cognition.ai/inputTokens'] != null && !m['cognition.ai/subagent_context'])
+          state.usage.lastCall = { input: m['cognition.ai/inputTokens'], output: m['cognition.ai/outputTokens'], cacheRead: m['cognition.ai/cachedReadTokens'] };
+        break;
+      }
       case 'agent_message_chunk': if (u.content?.type === 'text') log('message', { text: u.content.text }); break;
       case 'agent_thought_chunk': if (u.content?.type === 'text') log('thought', { text: u.content.text }); break;
       case 'tool_call': {
@@ -557,6 +566,15 @@ function acpDriver({ cfg, state, log, save, errFd, requestPermission }) {
       }
       if (current !== cfg.title) await setNativeTitle(cfg.title).catch(() => {});
     },
+    // OpenCode keeps cumulative tokens and cost per session; other ACP agents report through usage_update.
+    async refreshUsage() {
+      if (cfg.agent !== 'opencode' || !state.agentHttpPort) return;
+      try {
+        const j = await (await fetch(opencodeSessionUrl())).json();
+        const t = j.tokens || {};
+        state.usage = { ...(state.usage || {}), input: t.input, output: t.output, reasoning: t.reasoning, cacheRead: t.cache?.read, cacheWrite: t.cache?.write, cost: j.cost };
+      } catch { /* keep the previous reading */ }
+    },
     shutdown(code) {
       if (child) killTree(child.pid);
       setTimeout(() => process.exit(code), 300);
@@ -669,6 +687,9 @@ function agyDriver({ cfg, state, log, save, errFd, requestPermission }) {
           child = null;
           if (result) {
             if (!state.sessionId && result.conversation_id) state.sessionId = result.conversation_id;
+            const t = result.usage || {};
+            const u = state.usage || { input: 0, output: 0, thinking: 0, cacheRead: 0 };
+            state.usage = { input: u.input + (t.input_tokens || 0), output: u.output + (t.output_tokens || 0), thinking: u.thinking + (t.thinking_tokens || 0), cacheRead: u.cacheRead + (t.cache_read_tokens || 0) };
             resolve({ stopReason: result.status === 'SUCCESS' ? 'end_turn' : String(result.status).toLowerCase(), denied: (result.denied_actions || []).map(d => d.action) });
           } else if (cancelled) resolve({ stopReason: 'cancelled' });
           else reject(new Error(`agy exited (code ${code}) without a result; see stderr.log`));
@@ -679,6 +700,7 @@ function agyDriver({ cfg, state, log, save, errFd, requestPermission }) {
     setConfig,
     async setNativeTitle() { return false; }, // agy has no conversation rename
     async keepTitle() {},
+    async refreshUsage() {}, // accumulated from each turn's result event
     // Called by the gate hook for every tool call; resolves to agy's hook decision.
     async gate(input) {
       const name = input.toolCall?.name || 'unknown';
@@ -821,6 +843,142 @@ async function doctor(flags) {
   if (!ok) process.exitCode = 1;
 }
 
+// ---------------------------------------------------------------- usage
+
+// Account usage per lane, read from each CLI's own reporting (no third-party meters):
+//  - claude: `claude -p /usage` (plan limits: session, weekly)
+//  - agy:    `agy -p /usage --output-format stream-json` (remaining quota per model group)
+//  - opencode: `opencode stats` (OpenCode's local token and cost estimates; no provider quotas)
+//  - devin, cursor: no usage surface; reported as unknown
+// Nothing here starts a model turn.
+
+const execFileAsync = promisify(execFile);
+const runQuiet = async (cmd, args, timeout) => (await execFileAsync(cmd, args, {
+  encoding: 'utf8', timeout, windowsHide: true, cwd: os.tmpdir(), maxBuffer: 8 * 1024 * 1024,
+  env: { ...process.env, NO_COLOR: '1', MSYS_NO_PATHCONV: '1' },
+})).stdout;
+const stripAnsi = s => s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
+const camel = s => s.toLowerCase().replace(/[^a-z0-9]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''));
+// "31.0M" -> 31000000, "3 171" (narrow no-break space) -> 3171, "$3.1461" -> 3.1461
+const humanNumber = v => {
+  const m = /^\$?([\d.,\s  ]+)\s*([KMB])?$/i.exec(String(v).trim());
+  if (!m) return v;
+  const n = Number(m[1].replace(/[\s  ,]/g, ''));
+  return Number((n * ({ K: 1e3, M: 1e6, B: 1e9 }[(m[2] || '').toUpperCase()] || 1)).toPrecision(12));
+};
+
+const USAGE_LANES = {
+  async claude() {
+    const out = stripAnsi(await runQuiet(which('claude'), ['-p', '/usage'], 120000));
+    const limits = [];
+    for (const line of out.split(/\r?\n/)) {
+      const m = /^Current ([^:]+):\s*(\d+(?:\.\d+)?)%\s*used\D*?resets\s+(.+)$/.exec(line.trim());
+      if (m) limits.push({ name: m[1].trim(), usedPercent: Number(m[2]), resets: m[3].trim() });
+    }
+    if (!limits.length) return { status: 'unknown', reason: 'could not parse `claude -p /usage`', raw: out.slice(0, 600) };
+    return { status: 'ok', kind: 'quota', billing: /subscription/i.test(out) ? 'subscription' : 'other', limits };
+  },
+  async agy() {
+    const out = await runQuiet(AGENTS.agy().cmd, ['-p', '/usage', '--output-format', 'stream-json'], 120000);
+    for (const line of out.split(/\r?\n/)) {
+      let m;
+      try { m = JSON.parse(line); } catch { continue; }
+      const groups = (m.command || m.result?.command)?.data?.groups;
+      if (!groups) continue;
+      const pct = x => Math.round(x * 1000) / 10;
+      return {
+        status: 'ok', kind: 'quota',
+        limits: groups.flatMap(g => (g.buckets || []).map(b => ({
+          name: `${g.name} (${b.window})`, usedPercent: pct(1 - b.remaining_fraction), remainingPercent: pct(b.remaining_fraction), resets: b.reset_time,
+        }))),
+      };
+    }
+    return { status: 'unknown', reason: 'no usage data from `agy -p /usage`' };
+  },
+  async opencode(days) {
+    const out = stripAnsi(await runQuiet(AGENTS.opencode().cmd, ['--pure', 'stats', '--days', String(days), '--models'], 180000));
+    const totals = {};
+    const models = [];
+    let section = '';
+    let current = null;
+    for (const raw of out.split(/\r?\n/)) {
+      const l = raw.replace(/[─-╿]/g, '').trim();
+      if (!l) continue;
+      if (/^[A-Z][A-Z &]+$/.test(l)) { section = l; current = null; continue; }
+      const kv = /^(.+?)\s{2,}(\S.*)$/.exec(l);
+      if (section === 'MODEL USAGE') {
+        if (!kv) { current = { model: l }; models.push(current); } else if (current) current[camel(kv[1])] = humanNumber(kv[2]);
+      } else if ((section === 'OVERVIEW' || section === 'COST & TOKENS') && kv) totals[camel(kv[1])] = humanNumber(kv[2]);
+    }
+    if (!Object.keys(totals).length) return { status: 'unknown', reason: 'could not parse `opencode stats`', raw: out.slice(0, 600) };
+    return {
+      status: 'ok', kind: 'local-estimate', days, totals, models,
+      note: 'OpenCode\'s own token counts and list-price cost estimates; provider quotas (Ollama Cloud, OpenCode Zen/Go, Antigravity) are not exposed',
+    };
+  },
+  async devin() {
+    return { status: 'unknown', kind: 'quota', reason: 'Devin reports only the plan tier (/status), not remaining quota; per-session context and tokens are in `acp list`' };
+  },
+  async cursor() {
+    return { status: 'unknown', kind: 'quota', reason: 'Cursor exposes no usage through its CLI or ACP; see the cursor.com dashboard' };
+  },
+};
+const USAGE_BINS = { claude: 'claude', agy: 'agy', opencode: 'opencode', devin: 'devin', cursor: null };
+
+async function usageReport(flags) {
+  const lanes = flags.lanes ? String(flags.lanes).split(',').map(s => s.trim()) : Object.keys(USAGE_LANES);
+  const days = Number(flags.days || 7);
+  const checkedAt = new Date().toISOString();
+  const entries = await Promise.all(lanes.map(async lane => {
+    if (!USAGE_LANES[lane]) return [lane, { status: 'error', reason: `unknown lane (lanes: ${Object.keys(USAGE_LANES).join(', ')})` }];
+    try {
+      if (lane === 'cursor') cursorCommand(); else which(USAGE_BINS[lane]);
+    } catch { return [lane, { status: 'unavailable', reason: 'CLI not installed' }]; }
+    try { return [lane, await USAGE_LANES[lane](days)]; }
+    catch (e) { return [lane, { status: 'unknown', reason: `failed: ${String(e.message).split('\n')[0].slice(0, 200)}` }]; }
+  }));
+  const report = { checkedAt, lanes: Object.fromEntries(entries), sessions: sessionUsageRows() };
+  if (flags.json) return console.log(JSON.stringify(report, null, 2));
+
+  console.log(`usage checked ${checkedAt} (unknown means not measurable, never zero)`);
+  for (const [lane, r] of Object.entries(report.lanes)) {
+    if (r.status !== 'ok') { console.log(`\n${lane}: ${r.status.toUpperCase()} - ${r.reason}`); continue; }
+    if (r.kind === 'quota') {
+      console.log(`\n${lane}:${r.billing ? ` (${r.billing})` : ''}`);
+      for (const l of r.limits) console.log(`  ${l.name.padEnd(34)} ${String(l.usedPercent).padStart(5)}% used   resets ${l.resets}`);
+    } else {
+      const t = r.totals;
+      console.log(`\n${lane}: last ${r.days} days, local estimate - ${r.note}`);
+      console.log(`  total cost $${t.totalCost ?? '?'}   input ${compact(t.input)}   output ${compact(t.output)}   sessions ${t.sessions ?? '?'}`);
+      for (const m of r.models.slice(0, 8)) console.log(`  ${m.model.padEnd(44)} $${m.cost ?? '?'}   in ${compact(m.inputTokens)}   out ${compact(m.outputTokens)}`);
+    }
+  }
+  if (report.sessions.length) {
+    console.log('\nbridge sessions:');
+    for (const s of report.sessions) console.log(`  ${s.id.padEnd(40)} ${String(s.agent).padEnd(9)} ${formatUsage(s.usage)}`);
+  }
+}
+
+// Per-session usage recorded by the daemons (see state.usage).
+function sessionUsageRows() {
+  if (!fs.existsSync(HOME)) return [];
+  return fs.readdirSync(HOME).map(s => {
+    const cfg = readJson(path.join(HOME, s, 'config.json'), {});
+    const st = readJson(path.join(HOME, s, 'state.json'), {});
+    return { id: s, agent: cfg.agent, title: cfg.title || '', usage: st.usage || null };
+  }).filter(r => r.usage);
+}
+
+const compact = n => (n == null ? '?' : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+function formatUsage(u) {
+  if (!u) return 'usage=unknown';
+  const parts = [];
+  if (u.input != null || u.output != null) parts.push(`tokens in=${compact(u.input)} out=${compact(u.output)}${u.cacheRead ? ` cache=${compact(u.cacheRead)}` : ''}`);
+  if (u.context) parts.push(`context ${compact(u.context.used)}/${compact(u.context.size)}`);
+  if (u.cost != null) parts.push(`cost $${Number(u.cost).toFixed(4)}`);
+  return parts.join('  ') || 'usage=unknown';
+}
+
 // ---------------------------------------------------------------- CLI
 
 function parseArgs(argv) {
@@ -930,6 +1088,7 @@ const HELP = `acp - drive coding agents (devin | opencode | cursor over ACP, agy
   acp wait <id> [--since SEQ] [--timeout SEC] [--thoughts]
   acp events <id> [--since SEQ] [--thoughts] [--raw]
   acp status <id>            acp list [--json]            acp doctor [--handshake]
+  acp usage [--json] [--lanes claude,agy,opencode,devin,cursor] [--days N]   account usage per lane (no model calls)
   acp approve <id> <req> [--always] [--option OPTION_ID]
   acp deny <id> <req>        acp cancel <id>
   acp options <id> [filter]  list config options (mode, model, ...) and their values
@@ -1024,15 +1183,16 @@ async function main() {
           id: s, agent: cfg.agent, status, policy: cfg.policy, title: cfg.title || '',
           nativeTitle: st.nativeTitle ?? null,
           model: st.config?.model?.current ?? null, mode: st.config?.mode?.current ?? null,
-          sessionId: st.sessionId || '', cwd: cfg.cwd,
+          sessionId: st.sessionId || '', cwd: cfg.cwd, usage: st.usage || null,
         });
       }
       if (a.flags.json) return console.log(JSON.stringify(rows, null, 2));
       for (const r of rows)
-        console.log(`${r.id.padEnd(24)} ${String(r.agent).padEnd(9)} ${String(r.status).padEnd(19)} ${String(r.policy).padEnd(9)} model=${r.model ?? '?'} mode=${r.mode ?? '-'}  ${r.title ? `"${r.title}"${r.nativeTitle === r.title ? '' : ' (bridge only)'} ` : ''}${r.cwd}  [${r.sessionId}]`);
+        console.log(`${r.id.padEnd(24)} ${String(r.agent).padEnd(9)} ${String(r.status).padEnd(19)} ${String(r.policy).padEnd(9)} model=${r.model ?? '?'} mode=${r.mode ?? '-'}  ${r.title ? `"${r.title}"${r.nativeTitle === r.title ? '' : ' (bridge only)'} ` : ''}${r.cwd}  [${r.sessionId}]${r.usage ? '  ' + formatUsage(r.usage) : ''}`);
       return;
     }
     case 'doctor': return doctor(a.flags);
+    case 'usage': return usageReport(a.flags);
     case 'gate': {
       const sub = a.pos[0] || 'status';
       if (sub === 'install') gateInstall();
