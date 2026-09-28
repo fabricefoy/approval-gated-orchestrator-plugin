@@ -17,7 +17,7 @@ Read this reference before evaluating or using a Devin, OpenCode, Cursor, Antigr
 | `acp approve <id> <req> [--always]` / `acp deny <id> <req>` | Answer a pending permission request |
 | `acp list [--json]`, `acp status <id>`, `acp events <id> --since N` | Find sessions for reuse (with each session's live `model` and `mode`, title, and whether the title is also set in the agent's own list); inspect state and history |
 | `acp title <id> <title>` | Rename a session, in the bridge and, for Devin and OpenCode, in the agent's own session list |
-| `acp usage [--json] [--lanes L,..] [--days N]` | Account usage per lane plus per-session usage, without starting a model turn (see Live usage) |
+| `acp usage [--json] [--lanes L,..] [--days N]` | Usage per lane (CodexBar CLI first, then the provider's own method) plus per-session usage, without starting a model turn (see Live usage) |
 | `acp options <id> [filter]`, `acp model <id> <value>`, `acp mode <id> <value>` | List and set the models and modes the agent exposes (values match by unique substring) |
 | `acp cancel <id>`, `acp stop <id> [--remove-worktree]` | Cancel the running turn; stop the session (the `acp/<name>` branch is kept) |
 
@@ -74,22 +74,32 @@ With the owner's OpenCode antigravity-auth plugin, OpenCode exposes models such 
 
 ## Live usage
 
-`acp usage --json` collects each lane's own usage reporting, with a `checkedAt` timestamp. None of it starts a model turn.
+Rule: **the CodexBar CLI first, then each provider's own method.** `acp usage --json` applies it per lane and records where each figure came from (`source`: `codexbar` or `provider`), with a `checkedAt` timestamp. None of it starts a model turn.
 
-| Lane | What is reported | Source |
-|---|---|---|
-| Claude Code | Plan limits: percent used and reset time for the 5-hour session and the week (all models, and per model family where the plan has one) | `claude -p /usage` |
-| Antigravity (`agy`) | Percent used and reset time per model group (Gemini; Claude and GPT) for the 5-hour and weekly windows | `agy -p /usage --output-format stream-json` |
-| OpenCode | Local estimates: tokens and list-price cost for the last N days (default 7), per model. Not a provider quota: Ollama Cloud, OpenCode Zen/Go and Antigravity-through-OpenCode allowances are not visible | `opencode stats --days N --models` |
-| Devin | Unknown: the CLI reports only the plan tier, not remaining quota | — |
-| Cursor | Unknown: no usage through the CLI or ACP (dashboard only) | — |
+1. **CodexBar CLI.** Found through `CODEXBAR_CLI` if set, otherwise on `PATH`: `codexbar-cli` on Windows (where `codexbar` is the tray app; the Windows installer's default folder is also checked), `codexbar` on macOS and Linux. The bridge asks it for each provider a lane can use, with `usage --provider <p> --format json`:
+
+   | Lane | CodexBar providers |
+   |---|---|
+   | Claude Code | `claude` |
+   | Cursor | `cursor` |
+   | Devin | `devin` |
+   | Antigravity (`agy`) | `antigravity` |
+   | OpenCode | `opencodego`, `opencode`, `ollama`, `antigravity` (whichever serves the model) |
+
+   It also asks for `codex` and reports it when available. A provider CodexBar is not set up for (not signed in, missing organization or key) comes back with CodexBar's error, and the lane falls through to step 2.
+2. **The provider's own method**, only for lanes CodexBar did not report:
+   - Claude Code: `claude -p /usage` (session and weekly limits).
+   - Antigravity: `agy -p /usage --output-format stream-json` (remaining quota per model group).
+   - Devin: `devin -p /usage`; some Devin versions support `/usage` only inside a session. If the lane is still unknown and a Devin session is running, send `/usage` in it (`acp prompt <id> "/usage" --wait`).
+   - OpenCode: `opencode stats --days N --models`, OpenCode's local token and list-price cost estimates. These are not a provider quota.
+   - Cursor: none. Cursor's CLI has no usage command, so only CodexBar can report it.
+3. Otherwise the lane is **unknown**: never zero, and never routed as though it were free.
+
+The check takes a few seconds when CodexBar reports every lane, and up to about a minute when provider fallbacks run. Setting a provider up in CodexBar (for example signing in Antigravity, or giving Devin its organization) makes that lane fast and consistent across machines.
 
 Each bridge session also records its own usage, shown in `acp list` and under `sessions` in `acp usage`: tokens accumulated per turn for `agy`; cumulative tokens, cache, context and cost for OpenCode; context-window use (and Devin's per-call tokens in the JSON) for Devin. Cursor reports nothing per session.
 
-Antigravity models used through OpenCode sign in with the same Google account, so they very likely draw on the quota `agy` reports; treat that as likely, not verified.
-
-
-CodexBar CLI is an optional external integration, not a plugin dependency, and may disagree with the lanes' own figures; prefer `acp usage` where a lane reports. Point owners to the official [CodexBar project](https://github.com/steipete/CodexBar#install) and [CLI configuration guide](https://github.com/steipete/CodexBar/blob/main/docs/cli-configuration.md); do not vendor its binaries or configuration. Use it only when it is already installed and configured, with `codexbar usage --provider <provider> --format json`; do not install or configure it as an orchestration side effect. Never read or print its config, API keys, OAuth data, browser cookies, or provider tokens. A reliable native account-usage surface is equally valid. If no live reading is available, report usage as unknown. Never treat missing, ambiguous, or failed usage output as zero consumption or unlimited capacity.
+Never read or print CodexBar's configuration, API keys, OAuth data, cookies or tokens, and do not install or configure CodexBar or any provider as a side effect of orchestration; suggest the setup to the owner instead.
 
 ## Ollama
 
