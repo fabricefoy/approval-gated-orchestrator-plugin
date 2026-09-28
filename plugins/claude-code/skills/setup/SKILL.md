@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Check and set up the approval-gated orchestrator's execution lanes - Node.js, git, and the Devin, OpenCode and Cursor CLIs used over ACP. Use when the owner asks to set up, check, or troubleshoot the orchestrator or its agents.
+description: Check and set up the approval-gated orchestrator's execution lanes - Node.js, git, the Devin, OpenCode and Cursor CLIs used over ACP, and the Antigravity CLI with its gate plugin. Use when the owner asks to set up, check, or troubleshoot the orchestrator or its agents.
 disable-model-invocation: true
 argument-hint: "[--handshake]"
 ---
@@ -26,6 +26,8 @@ For each FAIL or missing component, give the fix and ask before doing it:
 | Devin CLI | `devin` on `PATH`, logged in (`devin auth`) | Devin's official documentation (docs.devin.ai) |
 | OpenCode | `opencode` on `PATH`, with at least one provider configured | opencode.ai/docs |
 | Cursor CLI | `cursor-agent` or `agent` on `PATH`, logged in (`cursor-agent login`) | cursor.com/cli |
+| Antigravity CLI | `agy` on `PATH`, signed in | antigravity.google |
+| Antigravity gate | `acp gate install` (after `agy` is installed); needed for every agy session | bundled with this plugin |
 
 Fetch the current install command from the official page before running it; do not rely on a remembered one. Each CLI has its own login and billing, which the owner must set up. Never read, print, or copy credentials.
 
@@ -42,6 +44,8 @@ acp stop smoke-<agent>
 ```
 
 ## Known environment issues
+
+- Antigravity: a PreToolUse hook from another Antigravity plugin can crash on every call (seen with `googlecloudtools.datacloud_telemetry`, whose hook path is quoted in a way agy on Windows passes through literally). Every agy tool then fails with `JSON hook "..." failed`. With the owner's approval, disable that plugin with `agy plugin disable <name>`.
 
 - OpenCode starts slowly with many plugins, especially unpinned `@latest` ones, and one invalid plugin entry logs an error at every start. Suggest pinning versions; `-- --pure` skips plugins for a session.
 - Cursor (Windows) runs every shell command through the user's PowerShell profile and leaves `ps-script-*.ps1` files, some with environment dumps, in `%TEMP%`. A profile guard such as `if ([Environment]::GetCommandLineArgs() -contains '-NonInteractive') { return }` speeds it up, at the cost of profile setup (for example conda activation) in agent shells.

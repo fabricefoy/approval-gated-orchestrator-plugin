@@ -4,8 +4,10 @@
 
 .DESCRIPTION
   Checks prerequisites, adds this repository as a Claude Code plugin marketplace,
-  installs the plugin, and reports which ACP agents (Devin, OpenCode, Cursor) are
-  available. It never installs or configures the agent CLIs themselves.
+  installs the plugin, and reports which agents (Devin, OpenCode, Cursor, Antigravity)
+  are available. When the Antigravity CLI is present it installs the acp-bridge-gate
+  plugin that agy sessions need (-NoAgyGate skips that). It never installs or
+  configures the agent CLIs themselves.
 
 .EXAMPLE
   # From a clone of the repository
@@ -19,7 +21,9 @@ param(
   [string]$Source = 'fabricefoy/approval-gated-orchestrator-plugin',
   [switch]$Local,
   [ValidateSet('user', 'project', 'local')][string]$Scope = 'user',
-  [switch]$Handshake
+  [switch]$Handshake,
+  # Skip installing the Antigravity gate plugin even when agy is present.
+  [switch]$NoAgyGate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -76,6 +80,10 @@ if ((claude plugin list 2>&1 | Out-String) -match [regex]::Escape($Plugin)) {
 
 Step 'Checking ACP agents'
 $bridge = Join-Path $PSScriptRoot 'plugins/claude-code/scripts/acp.mjs'
+if ((Test-Path $bridge) -and -not $NoAgyGate -and (Get-Command agy -ErrorAction SilentlyContinue)) {
+  Write-Host 'Antigravity CLI found; installing the acp-bridge-gate plugin (inactive outside bridge sessions).'
+  node $bridge gate install
+}
 if (Test-Path $bridge) {
   $doctorArgs = @('doctor'); if ($Handshake) { $doctorArgs += '--handshake' }
   node $bridge @doctorArgs
@@ -91,4 +99,5 @@ Start a new Claude Code session, then:
   /approval-gated-orchestrator:setup                check or set up Devin, OpenCode and Cursor
 Agent CLIs (optional, each with its own login and billing):
   Devin     docs.devin.ai        OpenCode  opencode.ai/docs        Cursor CLI  cursor.com/cli
+  Antigravity CLI  antigravity.google (agy sessions also need: acp gate install)
 "@

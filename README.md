@@ -11,10 +11,11 @@ Installable plugins for approval-gated, cost-aware project orchestration, for **
 
 ## Included
 
-- `/approval-gated-orchestrator:orchestrate`: plans, routes, and dispatches one bounded task at a time, then verifies the report. Executors are Claude Code subagents or **Devin, OpenCode and Cursor agents driven over ACP** (Agent Client Protocol).
+- `/approval-gated-orchestrator:orchestrate`: plans, routes, and dispatches one bounded task at a time, then verifies the report. Executors are Claude Code subagents, **Devin, OpenCode and Cursor agents driven over ACP** (Agent Client Protocol), or the **Antigravity CLI (`agy`)**.
 - `/approval-gated-orchestrator:model-routing-refresh`: refreshes a user- or project-owned copy of the dated routing guide when explicitly authorized.
 - `/approval-gated-orchestrator:setup`: checks Node.js, git, and the agent CLIs, and explains how to fix what's missing.
-- `acp` (`scripts/acp.mjs`, with `bin/acp` and `bin/acp.cmd` shortcuts): a dependency-free Node.js ACP client. The skills call it through `${CLAUDE_PLUGIN_ROOT}`, so it works whether or not the plugin's `bin/` is on `PATH`. It starts agent sessions (optionally in git worktrees), sends prompts, streams tool calls, and lets the orchestrator approve or deny each permission request.
+- `acp` (`scripts/acp.mjs`, with `bin/acp` and `bin/acp.cmd` shortcuts): a dependency-free Node.js agent bridge. The skills call it through `${CLAUDE_PLUGIN_ROOT}`, so it works whether or not the plugin's `bin/` is on `PATH`. It starts agent sessions (optionally in git worktrees), sends prompts, streams tool calls, and lets the orchestrator approve or deny each permission request.
+- `agy-gate/`: an Antigravity plugin (`acp gate install`) whose PreToolUse hook routes every `agy` tool call through the bridge during bridge sessions, and does nothing otherwise. `agy` has no ACP server, so this is what gives it the same per-action approvals as the other agents.
 
 ## Install
 
@@ -37,7 +38,7 @@ Or install manually from inside Claude Code:
 /plugin install approval-gated-orchestrator@approval-gated-orchestrator
 ```
 
-Start a new session after installing. The agent CLIs are optional and are **never installed by this plugin**. Each has its own login and billing: [Devin](https://docs.devin.ai), [OpenCode](https://opencode.ai/docs), [Cursor CLI](https://cursor.com/cli). Claude Code subagent lanes work without any of them.
+Start a new session after installing. The agent CLIs are optional and are **never installed by this plugin**. Each has its own login and billing: [Devin](https://docs.devin.ai), [OpenCode](https://opencode.ai/docs), [Cursor CLI](https://cursor.com/cli), [Antigravity CLI](https://antigravity.google). Claude Code subagent lanes work without any of them. When `agy` is installed, the installers also install the Antigravity gate plugin (skip with `-NoAgyGate` / `--no-agy-gate`).
 
 ## Use
 
@@ -45,9 +46,9 @@ Start a new session after installing. The agent CLIs are optional and are **neve
 /approval-gated-orchestrator:orchestrate Add input validation to the export command. Prepare the executor prompt; do not dispatch until I approve.
 ```
 
-Orchestrator tasks use `⭐O|<Model> [<Reasoning>]|<Route>|<Platform>`, advisor tasks use `💡A|<Model> [<Reasoning>]|<Route>|<Platform>`, and executor or review tasks remain unprefixed as `E|...` or `R|...`. For example: `E|GLM 5.2 [High]|Ollama|OpenCode`. Before creating an executor, the orchestrator reuses a running or stopped session with the same identity (`acp start --resume` reloads a stopped agent's history).
+Orchestrator tasks use `⭐O|<Model> [<Reasoning>]|<Route>|<Platform>`, advisor tasks use `💡A|<Model> [<Reasoning>]|<Route>|<Platform>`, and executor or review tasks remain unprefixed as `E|...` or `R|...`. For example: `E|GLM 5.2 [High]|Ollama|OpenCode`. Before creating an executor, the orchestrator must reuse a running or stopped session with the same identity, matched against the session's live model (`acp list --json`). `acp start --resume` reloads a stopped agent's history. Titles also appear in Devin's and OpenCode's own session lists; Cursor cannot rename sessions, so its titles live only in the bridge.
 
-ACP permission policies: `read-only` (advisors, reviews), `ask` (default; edits and commands wait for the orchestrator, which approves only what the frozen prompt authorizes and escalates the rest to you), `edits`, and `yolo`. Per-agent caveats are documented in [`acp-lanes.md`](plugins/claude-code/skills/orchestrate/references/acp-lanes.md). The main one: Cursor applies file edits without asking, so Cursor executors always get a worktree.
+ACP permission policies: `read-only` (advisors, reviews), `ask` (default; edits and commands wait for the orchestrator, which approves only what the frozen prompt authorizes and escalates the rest to you), `edits`, and `yolo`. Per-agent caveats are documented in [`acp-lanes.md`](plugins/claude-code/skills/orchestrate/references/acp-lanes.md). The main one: Cursor applies file edits without asking, so Cursor executors always get a worktree. Antigravity models are also available through OpenCode's antigravity-auth plugin, with OpenCode's approvals.
 
 ## Validate
 

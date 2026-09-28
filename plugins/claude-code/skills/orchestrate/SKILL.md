@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Orchestrate bounded multi-agent or multi-provider project work when the user wants prompt approval, explicit authority gates, cost-aware routing, executor isolation, task reuse, and independent verification. Executors can be Claude Code subagents or Devin, OpenCode and Cursor agents driven over ACP. Also use when the user asks to delegate or hand off work to Devin, OpenCode or Cursor. Do not use for ordinary direct implementation unless the user asks for this governance workflow.
+description: Orchestrate bounded multi-agent or multi-provider project work when the user wants prompt approval, explicit authority gates, cost-aware routing, executor isolation, task reuse, and independent verification. Executors can be Claude Code subagents, Devin, OpenCode and Cursor agents driven over ACP, or the Antigravity CLI (agy). Also use when the user asks to delegate or hand off work to Devin, OpenCode, Cursor or Antigravity. Do not use for ordinary direct implementation unless the user asks for this governance workflow.
 argument-hint: "[goal or task to orchestrate]"
 ---
 
@@ -8,15 +8,17 @@ argument-hint: "[goal or task to orchestrate]"
 
 Operate as the coordinator, not the default implementer. Preserve the project owner's authority while turning a project goal into one bounded, verifiable execution at a time.
 
-Before routing, dispatching, or reviewing work, read [references/operating-framework.md](references/operating-framework.md) in full. Before using a Devin, OpenCode or Cursor lane, also read [references/acp-lanes.md](references/acp-lanes.md).
+Before routing, dispatching, or reviewing work, read [references/operating-framework.md](references/operating-framework.md) in full. Before using a Devin, OpenCode, Cursor or Antigravity lane, also read [references/acp-lanes.md](references/acp-lanes.md).
 
 ## Execution surfaces
 
 - **Claude Code subagent** (native lane): the `Agent` tool, with `isolation: "worktree"` for mutations. It runs in the background and notifies on completion; continue it with `SendMessage`.
-- **Devin, OpenCode, Cursor** (ACP lanes): the ACP bridge bundled with this plugin. In this skill and its references, `acp` stands for `node "${CLAUDE_PLUGIN_ROOT}/scripts/acp.mjs"`; always run that full form, because the plugin's `bin/acp` shortcut is not on `PATH` in every environment. Each agent runs in its own harness, with its own tools, login, and billing.
+- **Devin, OpenCode, Cursor, Antigravity** (bridge lanes): the agent bridge bundled with this plugin. In this skill and its references, `acp` stands for `node "${CLAUDE_PLUGIN_ROOT}/scripts/acp.mjs"`; always run that full form, because the plugin's `bin/acp` shortcut is not on `PATH` in every environment. Devin, OpenCode and Cursor are driven over ACP; the Antigravity CLI (`agy`) has no ACP server, so the bridge runs it in print mode behind a gate hook with the same commands, policies and approvals. Each agent runs in its own harness, with its own tools, login, and billing.
 - **Manual advisor**: a paste-ready prompt for the owner. Nothing is dispatched.
 
-Run `acp doctor` once per session before choosing an ACP lane. A missing CLI is an unavailable lane, not something to install. The `/approval-gated-orchestrator:setup` skill covers installation when the owner asks for it.
+Antigravity models are also reachable through OpenCode (route `Antigravity`, platform `OpenCode`) when the owner's OpenCode has the antigravity-auth plugin; that lane uses OpenCode's agent and ACP approvals. Choose the native `agy` lane when Antigravity's own agent and tools are the point.
+
+Run `acp doctor` once per session before choosing a bridge lane. A missing CLI is an unavailable lane, not something to install. The `/approval-gated-orchestrator:setup` skill covers installation when the owner asks for it.
 
 ## Canonical Model Routing
 
@@ -35,8 +37,10 @@ If the selected guide is missing or stale enough to make routing unreliable, do 
 1. Inspect current project instructions, repository state, and any declared progress, lessons, architecture, or project-specific routing documents. Treat absent optional documents as absent; do not invent or create them.
 2. Define the next bounded outcome and its evidence. Surface ambiguity that would materially change scope, authorization, or validation.
 3. Classify difficulty, duration, modality, failure cost, data sensitivity, context size, and required tools.
-4. Check available lanes (`acp doctor`), models, reasoning levels, live usage, and reusable executors. Search running subagents and `acp list --json` (running and stopped sessions) before creating one. An exact match has the same platform, route, exact model, reasoning, project, and role. Reuse it: continue a running one, or resume a stopped ACP session with `acp start <agent> --name <id> --resume`. Never create a duplicate.
-5. Title orchestrator tasks `⭐O|<Model> [<Reasoning>]|<Route>|<Platform>` and advisor tasks `💡A|<Model> [<Reasoning>]|<Route>|<Platform>`; keep executor and review titles unprefixed as `E|...` and `R|...`. The emoji immediately precedes the role code with no space. Keep project identity in duplicate detection rather than the title. Examples: `E|GLM 5.2 [High]|Ollama|OpenCode`, `R|Opus 5 [High]|Anthropic|Claude Code`, `E|Devin-managed|Devin Local`. Pass the title with `acp start --title`, and use a filesystem-safe slug of the title plus the project name as `--name`.
+4. Check available lanes (`acp doctor`), models, reasoning levels, live usage, and reusable executors. Before creating an executor you must search running subagents and `acp list --json`, which covers running and stopped sessions. An exact match has the same platform, route, exact model, reasoning, project, and role. Match the model against the session's live `model` field, not only its title; if they disagree, the session is not a match until you correct one of them. When a match exists, reuse it: continue a running one with `acp prompt`, or resume a stopped one with `acp start <agent> --name <id> --resume`. Creating a second executor with the same identity is never allowed. If the match is busy, wait for it.
+5. Title orchestrator tasks `⭐O|<Model> [<Reasoning>]|<Route>|<Platform>` and advisor tasks `💡A|<Model> [<Reasoning>]|<Route>|<Platform>`; keep executor and review titles unprefixed as `E|...` and `R|...`. The emoji immediately precedes the role code with no space. Keep project identity in duplicate detection rather than the title. Examples: `E|GLM 5.2 [High]|Ollama|OpenCode`, `R|Opus 5 [High]|Anthropic|Claude Code`, `E|Devin-managed|Devin Local`.
+   - ACP: pass the title with `acp start --title`, and use a filesystem-safe slug of the title plus the project name as `--name`. Devin and OpenCode also show the title in their own session lists, and the bridge restores it if the agent auto-renames the session. Cursor cannot rename sessions, so its title lives only in the bridge. Rename later with `acp title <id> <title>`, for example after an approved model change or to bring a legacy title up to date.
+   - Subagent: use the title as the `Agent` tool's `description`, so it labels the task in the Claude Code UI.
 6. Select the lowest-cost lane and reasoning level likely to succeed. Live usage comes from a reliable native surface, or from CodexBar when it is already installed and configured; otherwise report usage as unknown, never zero.
 7. Present the owner with the complete frozen executor prompt and routing summary. Do not dispatch, implement, test, commit, push, deploy, or begin a new phase until the specifically required approval is explicit.
 8. After the owner explicitly approves dispatch of the frozen prompt, use one executor for one bounded task, created or reused under its canonical title. That approval authorizes only that named executor. Give ACP executors a worktree (`--worktree`) whenever they may mutate files. Choose the ACP permission policy from the approved authority (see the operating framework).

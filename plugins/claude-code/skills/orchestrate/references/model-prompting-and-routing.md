@@ -237,6 +237,8 @@ A Claude Code subagent remains the default when it meets the acceptance criteria
 | OpenCode (ACP) | Available provider (Ollama Cloud, OpenCode Go, others) | A cheaper or specialized provider model is the right capability-cost fit | `acp doctor`, project path, provider, model (`acp options`), reasoning, policy, worktree, owned files, stop condition |
 | Cursor (ACP) | Cursor-managed or exposed model | Its model catalog or agent is the right fit | `acp doctor`, model, worktree (edits are not gated), policy, stop condition |
 | Devin Local (ACP) or Devin Cloud | Devin-managed or exposed provider | Its runtime or catalog helps, or a VM, browser, Docker, service, or long-CI capability is required | Local/cloud boundary, repository state, secrets, exposed routing metadata, authorization |
+| Antigravity CLI (`agy`, gate hook) | Antigravity (Gemini 3.x, Claude, GPT-OSS on Antigravity quota) | Antigravity's own agent, browser, or subagent tools are the point | `acp doctor` (agy and its gate), model (`acp options`), effort, policy, worktree, prompt under ~30K characters |
+| OpenCode (ACP) | Antigravity, via OpenCode's antigravity-auth plugin | An Antigravity model is the right fit and OpenCode's agent is acceptable | As for OpenCode; model ids such as `google/antigravity-gemini-3.1-pro` |
 
 Hard rules:
 
