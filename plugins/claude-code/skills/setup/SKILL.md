@@ -28,6 +28,7 @@ For each FAIL or missing component, give the fix and ask before doing it:
 | Cursor CLI | `cursor-agent` or `agent` on `PATH`, logged in (`cursor-agent login`) | cursor.com/cli |
 | Antigravity CLI | `agy` on `PATH`, signed in | antigravity.google |
 | Antigravity gate | `acp gate install` (after `agy` is installed); needed for every agy session | bundled with this plugin |
+| CodexBar CLI | first source for `acp usage`: `codexbar-cli` on Windows, `codexbar` on macOS, on `PATH` or named by `CODEXBAR_CLI`; each lane's provider set up in CodexBar | github.com/steipete/CodexBar (macOS), its Windows port |
 
 Fetch the current install command from the official page before running it; do not rely on a remembered one. Each CLI has its own login and billing, which the owner must set up. Never read, print, or copy credentials.
 

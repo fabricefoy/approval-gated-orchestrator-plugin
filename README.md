@@ -50,7 +50,7 @@ Orchestrator tasks use `⭐O|<Model> [<Reasoning>]|<Route>|<Platform>`, advisor 
 
 ACP permission policies: `read-only` (advisors, reviews), `ask` (default; edits and commands wait for the orchestrator, which approves only what the frozen prompt authorizes and escalates the rest to you), `edits`, and `yolo`. Per-agent caveats are documented in [`acp-lanes.md`](plugins/claude-code/skills/orchestrate/references/acp-lanes.md). The main one: Cursor applies file edits without asking, so Cursor executors always get a worktree. Antigravity models are also available through OpenCode's antigravity-auth plugin, with OpenCode's approvals.
 
-`acp usage` reports usage per lane from each CLI's own figures, without starting a model turn: Claude Code plan limits (`/usage`), Antigravity quota per model group (`agy /usage`), and OpenCode's local token and cost estimates (`opencode stats`). Devin and Cursor expose no quota and are reported as unknown. Bridge sessions also track their own tokens, context and cost (`acp list`).
+`acp usage` reports usage per lane: it asks the [CodexBar](https://github.com/steipete/CodexBar) CLI first (`codexbar-cli` on Windows, `codexbar` on macOS; override with `CODEXBAR_CLI`), and for providers CodexBar does not report it falls back to the provider's own method (`claude -p /usage`, `agy -p /usage`, `opencode stats`; Devin's `/usage` is interactive-only, so Devin needs its organization set in CodexBar). Lanes with neither are reported as unknown. Bridge sessions also track their own tokens, context and cost (`acp list`).
 
 ## Validate
 

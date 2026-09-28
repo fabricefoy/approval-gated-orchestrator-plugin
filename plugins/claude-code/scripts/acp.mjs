@@ -808,6 +808,8 @@ async function doctor(flags) {
   const major = Number(process.versions.node.split('.')[0]);
   line(major >= 20, 'node', `${process.version}${major >= 20 ? '' : ' (need >= 20)'}`);
   try { line(true, 'git', execFileSync('git', ['--version'], { encoding: 'utf8' }).trim()); } catch { line(false, 'git', 'not found (needed for --worktree)'); }
+  const cb = codexbarCli();
+  line(cb ? true : null, 'codexbar', cb || 'CodexBar CLI not found; `acp usage` will use each provider\'s own method (set CODEXBAR_CLI if it is installed elsewhere)');
   let found = 0;
   for (const name of Object.keys(AGENTS)) {
     let r;
@@ -845,20 +847,17 @@ async function doctor(flags) {
 
 // ---------------------------------------------------------------- usage
 
-// Account usage per lane, read from each CLI's own reporting (no third-party meters):
-//  - claude: `claude -p /usage` (plan limits: session, weekly)
-//  - agy:    `agy -p /usage --output-format stream-json` (remaining quota per model group)
-//  - opencode: `opencode stats` (OpenCode's local token and cost estimates; no provider quotas)
-//  - devin, cursor: no usage surface; reported as unknown
-// Nothing here starts a model turn.
+// Usage per lane: the CodexBar CLI first, then the provider's own method for anything CodexBar
+// does not report. Nothing here starts a model turn.
 
 const execFileAsync = promisify(execFile);
 const runQuiet = async (cmd, args, timeout) => (await execFileAsync(cmd, args, {
-  encoding: 'utf8', timeout, windowsHide: true, cwd: os.tmpdir(), maxBuffer: 8 * 1024 * 1024,
+  encoding: 'utf8', timeout, windowsHide: true, cwd: os.tmpdir(), maxBuffer: 16 * 1024 * 1024,
   env: { ...process.env, NO_COLOR: '1', MSYS_NO_PATHCONV: '1' },
 })).stdout;
 const stripAnsi = s => s.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '');
 const camel = s => s.toLowerCase().replace(/[^a-z0-9]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ''));
+const round1 = x => (x == null ? null : Math.round(x * 10) / 10);
 // "31.0M" -> 31000000, "3 171" (narrow no-break space) -> 3171, "$3.1461" -> 3.1461
 const humanNumber = v => {
   const m = /^\$?([\d.,\s  ]+)\s*([KMB])?$/i.exec(String(v).trim());
@@ -867,7 +866,77 @@ const humanNumber = v => {
   return Number((n * ({ K: 1e3, M: 1e6, B: 1e9 }[(m[2] || '').toUpperCase()] || 1)).toPrecision(12));
 };
 
-const USAGE_LANES = {
+// The CodexBar CLI is `codexbar-cli` on Windows (where `codexbar` is the tray app) and
+// `codexbar` on macOS and Linux. CODEXBAR_CLI overrides the lookup.
+function codexbarCli() {
+  if (process.env.CODEXBAR_CLI) return process.env.CODEXBAR_CLI;
+  for (const name of IS_WIN ? ['codexbar-cli'] : ['codexbar', 'codexbar-cli']) {
+    try { return which(name); } catch { /* try the next name */ }
+  }
+  if (IS_WIN) {
+    // The Windows installer does not put the CLI on PATH.
+    const p = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'CodexBar', 'codexbar-cli.exe');
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+// CodexBar providers that can report each lane. OpenCode's usage belongs to whichever provider
+// serves its model, so every provider it can route to is listed.
+const LANE_PROVIDERS = {
+  claude: ['claude'],
+  cursor: ['cursor'],
+  devin: ['devin'],
+  agy: ['antigravity'],
+  opencode: ['opencodego', 'opencode', 'ollama', 'antigravity'],
+};
+
+const WINDOW_NAMES = { 300: '5h', 1440: 'daily', 10080: 'weekly', 43200: 'monthly' };
+function codexbarEntry(e) {
+  if (e.error) return { provider: e.provider, ok: false, error: e.error };
+  const u = e.usage || {};
+  const limits = [];
+  const add = (name, w) => {
+    if (!w || w.is_informational) return;
+    limits.push({
+      name, usedPercent: round1(w.used_percent), resets: w.resets_at || null, windowMinutes: w.window_minutes ?? null,
+      ...(w.reset_description && !w.resets_at ? { note: w.reset_description } : {}),
+    });
+  };
+  for (const key of ['primary', 'secondary', 'tertiary']) if (u[key]) add(WINDOW_NAMES[u[key].window_minutes] || u[key].title || key, u[key]);
+  if (u.model_specific) add('model-specific', u.model_specific);
+  for (const x of u.extra_rate_windows || []) add(x.title || x.id, x.window);
+  const c = e.cost;
+  return {
+    provider: e.provider, ok: true, source: e.source, plan: u.login_method || null, limits,
+    cost: c ? { used: c.used, limit: c.limit, currency: c.currency_code, period: c.period, resets: c.resets_at } : null,
+  };
+}
+
+// Providers asked outside the lanes: Codex is not a bridge lane, but the routing guide covers it.
+const EXTRA_PROVIDERS = ['codex'];
+
+// One `usage --provider <p> --format json` call per provider, in parallel: the documented form
+// on every platform. A provider CodexBar cannot report comes back as an error, not a failure.
+async function codexbarUsage() {
+  const cli = codexbarCli();
+  if (!cli) return { cli: null, providers: {}, error: 'CodexBar CLI not found (set CODEXBAR_CLI to its path)' };
+  const wanted = [...new Set([...Object.values(LANE_PROVIDERS).flat(), ...EXTRA_PROVIDERS])];
+  const entries = await Promise.all(wanted.map(async p => {
+    try {
+      const out = await runQuiet(cli, ['usage', '--provider', p, '--format', 'json', '--no-color'], 120000);
+      const list = JSON.parse(out.slice(out.indexOf('[')));
+      const e = list.find(x => x.provider === p) || list[0];
+      return [p, e ? codexbarEntry({ ...e, provider: p }) : { provider: p, ok: false, error: 'no data' }];
+    } catch (e) {
+      return [p, { provider: p, ok: false, error: `CodexBar failed: ${String(e.stderr || e.message).trim().split('\n').pop().slice(0, 200)}` }];
+    }
+  }));
+  return { cli, providers: Object.fromEntries(entries) };
+}
+
+// Each provider's own usage report, used only when CodexBar has nothing for that lane.
+const NATIVE_USAGE = {
   async claude() {
     const out = stripAnsi(await runQuiet(which('claude'), ['-p', '/usage'], 120000));
     const limits = [];
@@ -875,8 +944,8 @@ const USAGE_LANES = {
       const m = /^Current ([^:]+):\s*(\d+(?:\.\d+)?)%\s*used\D*?resets\s+(.+)$/.exec(line.trim());
       if (m) limits.push({ name: m[1].trim(), usedPercent: Number(m[2]), resets: m[3].trim() });
     }
-    if (!limits.length) return { status: 'unknown', reason: 'could not parse `claude -p /usage`', raw: out.slice(0, 600) };
-    return { status: 'ok', kind: 'quota', billing: /subscription/i.test(out) ? 'subscription' : 'other', limits };
+    if (!limits.length) return { ok: false, method: 'claude -p /usage', error: 'could not parse the output', raw: out.slice(0, 600) };
+    return { ok: true, method: 'claude -p /usage', limits };
   },
   async agy() {
     const out = await runQuiet(AGENTS.agy().cmd, ['-p', '/usage', '--output-format', 'stream-json'], 120000);
@@ -885,16 +954,18 @@ const USAGE_LANES = {
       try { m = JSON.parse(line); } catch { continue; }
       const groups = (m.command || m.result?.command)?.data?.groups;
       if (!groups) continue;
-      const pct = x => Math.round(x * 1000) / 10;
       return {
-        status: 'ok', kind: 'quota',
+        ok: true, method: 'agy -p /usage',
         limits: groups.flatMap(g => (g.buckets || []).map(b => ({
-          name: `${g.name} (${b.window})`, usedPercent: pct(1 - b.remaining_fraction), remainingPercent: pct(b.remaining_fraction), resets: b.reset_time,
+          name: `${g.name} (${b.window})`, usedPercent: round1((1 - b.remaining_fraction) * 100), resets: b.reset_time,
         }))),
       };
     }
-    return { status: 'unknown', reason: 'no usage data from `agy -p /usage`' };
+    return { ok: false, method: 'agy -p /usage', error: 'no usage data in the output' };
   },
+  // Devin: /usage exists only in the interactive terminal UI and shows the current session's
+  // credits/ACUs; headless (`devin -p`) and ACP sessions answer "Unknown command", and
+  // `devin -p` would also create a session on every check. Account usage comes from CodexBar.
   async opencode(days) {
     const out = stripAnsi(await runQuiet(AGENTS.opencode().cmd, ['--pure', 'stats', '--days', String(days), '--models'], 180000));
     const totals = {};
@@ -910,48 +981,74 @@ const USAGE_LANES = {
         if (!kv) { current = { model: l }; models.push(current); } else if (current) current[camel(kv[1])] = humanNumber(kv[2]);
       } else if ((section === 'OVERVIEW' || section === 'COST & TOKENS') && kv) totals[camel(kv[1])] = humanNumber(kv[2]);
     }
-    if (!Object.keys(totals).length) return { status: 'unknown', reason: 'could not parse `opencode stats`', raw: out.slice(0, 600) };
-    return {
-      status: 'ok', kind: 'local-estimate', days, totals, models,
-      note: 'OpenCode\'s own token counts and list-price cost estimates; provider quotas (Ollama Cloud, OpenCode Zen/Go, Antigravity) are not exposed',
-    };
+    if (!Object.keys(totals).length) return { ok: false, method: 'opencode stats', error: 'could not parse the output' };
+    return { ok: true, method: `opencode stats --days ${days}`, estimate: true, totals, models, note: 'local token and list-price cost estimates, not a provider quota' };
   },
-  async devin() {
-    return { status: 'unknown', kind: 'quota', reason: 'Devin reports only the plan tier (/status), not remaining quota; per-session context and tokens are in `acp list`' };
-  },
-  async cursor() {
-    return { status: 'unknown', kind: 'quota', reason: 'Cursor exposes no usage through its CLI or ACP; see the cursor.com dashboard' };
-  },
+  // Cursor's CLI has no usage command; CodexBar reads Cursor usage from its web API.
 };
-const USAGE_BINS = { claude: 'claude', agy: 'agy', opencode: 'opencode', devin: 'devin', cursor: null };
+const LANE_BINS = { claude: () => which('claude'), cursor: () => cursorCommand(), devin: () => which('devin'), agy: () => which('agy'), opencode: () => which('opencode') };
 
 async function usageReport(flags) {
-  const lanes = flags.lanes ? String(flags.lanes).split(',').map(s => s.trim()) : Object.keys(USAGE_LANES);
+  const lanes = flags.lanes ? String(flags.lanes).split(',').map(s => s.trim()) : Object.keys(LANE_PROVIDERS);
   const days = Number(flags.days || 7);
   const checkedAt = new Date().toISOString();
+  const codexbar = await codexbarUsage();
+
   const entries = await Promise.all(lanes.map(async lane => {
-    if (!USAGE_LANES[lane]) return [lane, { status: 'error', reason: `unknown lane (lanes: ${Object.keys(USAGE_LANES).join(', ')})` }];
+    if (!LANE_PROVIDERS[lane]) return [lane, { status: 'error', reason: `unknown lane (lanes: ${Object.keys(LANE_PROVIDERS).join(', ')})` }];
+    let installed = true;
+    try { LANE_BINS[lane](); } catch { installed = false; }
+    const cb = LANE_PROVIDERS[lane].map(p => codexbar.providers[p]).filter(Boolean);
+    const reported = cb.filter(e => e.ok);
+    const missing = LANE_PROVIDERS[lane].filter(p => !codexbar.providers[p]?.ok)
+      .map(p => codexbar.providers[p] ? `${p}: ${codexbar.providers[p].error}` : `${p}: not enabled in CodexBar`);
+    if (reported.length) return [lane, { status: 'ok', source: 'codexbar', installed, providers: reported, notReported: missing }];
+    const fallback = NATIVE_USAGE[lane];
+    const why = codexbar.cli ? missing.join('; ') : codexbar.error;
+    if (!installed || !fallback) return [lane, { status: 'unknown', installed, reason: why + (fallback ? '' : '; no per-provider usage method') }];
     try {
-      if (lane === 'cursor') cursorCommand(); else which(USAGE_BINS[lane]);
-    } catch { return [lane, { status: 'unavailable', reason: 'CLI not installed' }]; }
-    try { return [lane, await USAGE_LANES[lane](days)]; }
-    catch (e) { return [lane, { status: 'unknown', reason: `failed: ${String(e.message).split('\n')[0].slice(0, 200)}` }]; }
+      const r = await fallback(days);
+      if (r.ok) return [lane, { status: 'ok', source: 'provider', installed, codexbar: why, ...r }];
+      return [lane, { status: 'unknown', installed, reason: `${why}; ${r.method}: ${r.error}` }];
+    } catch (e) {
+      return [lane, { status: 'unknown', installed, reason: `${why}; provider method failed: ${String(e.message).split('\n')[0].slice(0, 200)}` }];
+    }
   }));
-  const report = { checkedAt, lanes: Object.fromEntries(entries), sessions: sessionUsageRows() };
+
+  // CodexBar providers outside the lanes (for example codex) that report usage.
+  const other = EXTRA_PROVIDERS.map(p => codexbar.providers[p]).filter(e => e?.ok);
+  const report = {
+    checkedAt, codexbar: { cli: codexbar.cli, error: codexbar.error || null },
+    lanes: Object.fromEntries(entries), otherProviders: other, sessions: sessionUsageRows(),
+  };
   if (flags.json) return console.log(JSON.stringify(report, null, 2));
 
-  console.log(`usage checked ${checkedAt} (unknown means not measurable, never zero)`);
+  const limitLine = l => `    ${String(l.name).padEnd(30)} ${String(l.usedPercent ?? '?').padStart(5)}% used${l.resets ? `   resets ${l.resets}` : ''}${l.note ? `   (${l.note})` : ''}`;
+  const costLine = c => `    cost ${c.used} of ${c.limit ?? '?'} ${c.currency || ''} (${c.period || ''})`;
+  console.log(`usage checked ${checkedAt} - CodexBar: ${codexbar.cli || codexbar.error}`);
+  console.log('(unknown means not measurable, never zero)');
   for (const [lane, r] of Object.entries(report.lanes)) {
     if (r.status !== 'ok') { console.log(`\n${lane}: ${r.status.toUpperCase()} - ${r.reason}`); continue; }
-    if (r.kind === 'quota') {
-      console.log(`\n${lane}:${r.billing ? ` (${r.billing})` : ''}`);
-      for (const l of r.limits) console.log(`  ${l.name.padEnd(34)} ${String(l.usedPercent).padStart(5)}% used   resets ${l.resets}`);
-    } else {
+    if (r.source === 'codexbar') {
+      for (const p of r.providers) {
+        console.log(`\n${lane}: CodexBar ${p.provider}${p.plan ? ` (${p.plan})` : ''}`);
+        p.limits.forEach(l => console.log(limitLine(l)));
+        if (p.cost) console.log(costLine(p.cost));
+      }
+      if (r.notReported.length) console.log(`    not reported by CodexBar: ${r.notReported.join('; ')}`);
+    } else if (r.limits) {
+      console.log(`\n${lane}: ${r.method} (CodexBar: ${r.codexbar})`);
+      r.limits.forEach(l => console.log(limitLine(l)));
+    } else if (r.totals) {
       const t = r.totals;
-      console.log(`\n${lane}: last ${r.days} days, local estimate - ${r.note}`);
-      console.log(`  total cost $${t.totalCost ?? '?'}   input ${compact(t.input)}   output ${compact(t.output)}   sessions ${t.sessions ?? '?'}`);
-      for (const m of r.models.slice(0, 8)) console.log(`  ${m.model.padEnd(44)} $${m.cost ?? '?'}   in ${compact(m.inputTokens)}   out ${compact(m.outputTokens)}`);
-    }
+      console.log(`\n${lane}: ${r.method}, ${r.note} (CodexBar: ${r.codexbar})`);
+      console.log(`    total cost $${t.totalCost ?? '?'}   input ${compact(t.input)}   output ${compact(t.output)}   sessions ${t.sessions ?? '?'}`);
+      for (const m of r.models.slice(0, 8)) console.log(`    ${m.model.padEnd(44)} $${m.cost ?? '?'}   in ${compact(m.inputTokens)}   out ${compact(m.outputTokens)}`);
+    } else console.log(`\n${lane}: ${r.method}\n${r.text}`);
+  }
+  if (other.length) {
+    console.log('\nother CodexBar providers:');
+    for (const p of other) console.log(`  ${p.provider}: ${p.plan || ''} ${p.limits.map(l => `${l.name} ${l.usedPercent}%`).join(', ')}`);
   }
   if (report.sessions.length) {
     console.log('\nbridge sessions:');
@@ -1088,7 +1185,7 @@ const HELP = `acp - drive coding agents (devin | opencode | cursor over ACP, agy
   acp wait <id> [--since SEQ] [--timeout SEC] [--thoughts]
   acp events <id> [--since SEQ] [--thoughts] [--raw]
   acp status <id>            acp list [--json]            acp doctor [--handshake]
-  acp usage [--json] [--lanes claude,agy,opencode,devin,cursor] [--days N]   account usage per lane (no model calls)
+  acp usage [--json] [--lanes claude,agy,opencode,devin,cursor] [--days N]   usage per lane: CodexBar CLI first, then each provider's own method (no model calls)
   acp approve <id> <req> [--always] [--option OPTION_ID]
   acp deny <id> <req>        acp cancel <id>
   acp options <id> [filter]  list config options (mode, model, ...) and their values
