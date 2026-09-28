@@ -2,8 +2,10 @@
 # Install the Approval-Gated Orchestrator plugin for Claude Code.
 #
 # Checks prerequisites, adds this repository as a Claude Code plugin marketplace,
-# installs the plugin, and reports which ACP agents (Devin, OpenCode, Cursor) are
-# available. It never installs or configures the agent CLIs themselves.
+# installs the plugin, and reports which agents (Devin, OpenCode, Cursor, Antigravity)
+# are available. When the Antigravity CLI is present it installs the acp-bridge-gate
+# plugin that agy sessions need (--no-agy-gate skips that). It never installs or
+# configures the agent CLIs themselves.
 #
 #   ./install.sh --local            # from a clone of the repository
 #   ./install.sh                    # from GitHub
@@ -13,6 +15,7 @@ set -eu
 SOURCE="fabricefoy/approval-gated-orchestrator-plugin"
 SCOPE="user"
 HANDSHAKE=""
+AGY_GATE=1
 MARKETPLACE="approval-gated-orchestrator"
 PLUGIN="approval-gated-orchestrator@$MARKETPLACE"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -23,7 +26,8 @@ while [ $# -gt 0 ]; do
     --source) SOURCE="$2"; shift ;;
     --scope) SCOPE="$2"; shift ;;
     --handshake) HANDSHAKE="--handshake" ;;
-    -h|--help) sed -n '2,11p' "$0"; exit 0 ;;
+    --no-agy-gate) AGY_GATE="" ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -59,6 +63,10 @@ fi
 
 step "Checking ACP agents"
 BRIDGE="$HERE/plugins/claude-code/scripts/acp.mjs"
+if [ -f "$BRIDGE" ] && [ -n "$AGY_GATE" ] && command -v agy >/dev/null 2>&1; then
+  echo "Antigravity CLI found; installing the acp-bridge-gate plugin (inactive outside bridge sessions)."
+  node "$BRIDGE" gate install
+fi
 if [ -f "$BRIDGE" ]; then
   node "$BRIDGE" doctor $HANDSHAKE || echo "Some checks failed. Missing agents are optional; install the ones you want to use."
 else
@@ -72,4 +80,5 @@ Start a new Claude Code session, then:
   /approval-gated-orchestrator:setup                check or set up Devin, OpenCode and Cursor
 Agent CLIs (optional, each with its own login and billing):
   Devin     docs.devin.ai        OpenCode  opencode.ai/docs        Cursor CLI  cursor.com/cli
+  Antigravity CLI  antigravity.google (agy sessions also need: acp gate install)
 EOF

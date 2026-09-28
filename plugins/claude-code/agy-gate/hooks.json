@@ -1,0 +1,17 @@
+{
+  "acp-bridge-gate": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node gate.mjs",
+            "timeout": 3600
+          }
+        ]
+      }
+    ]
+  }
+}

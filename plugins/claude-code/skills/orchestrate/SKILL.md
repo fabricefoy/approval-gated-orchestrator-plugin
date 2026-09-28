@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: Orchestrate bounded multi-agent or multi-provider project work when the user wants prompt approval, explicit authority gates, cost-aware routing, executor isolation, task reuse, and independent verification. Executors can be Claude Code subagents or Devin, OpenCode and Cursor agents driven over ACP. Also use when the user asks to delegate or hand off work to Devin, OpenCode or Cursor. Do not use for ordinary direct implementation unless the user asks for this governance workflow.
+description: Orchestrate bounded multi-agent or multi-provider project work when the user wants prompt approval, explicit authority gates, cost-aware routing, executor isolation, task reuse, and independent verification. Executors can be Claude Code subagents, Devin, OpenCode and Cursor agents driven over ACP, or the Antigravity CLI (agy). Also use when the user asks to delegate or hand off work to Devin, OpenCode, Cursor or Antigravity. Do not use for ordinary direct implementation unless the user asks for this governance workflow.
 argument-hint: "[goal or task to orchestrate]"
 ---
 
@@ -8,15 +8,17 @@ argument-hint: "[goal or task to orchestrate]"
 
 Operate as the coordinator, not the default implementer. Preserve the project owner's authority while turning a project goal into one bounded, verifiable execution at a time.
 
-Before routing, dispatching, or reviewing work, read [references/operating-framework.md](references/operating-framework.md) in full. Before using a Devin, OpenCode or Cursor lane, also read [references/acp-lanes.md](references/acp-lanes.md).
+Before routing, dispatching, or reviewing work, read [references/operating-framework.md](references/operating-framework.md) in full. Before using a Devin, OpenCode, Cursor or Antigravity lane, also read [references/acp-lanes.md](references/acp-lanes.md).
 
 ## Execution surfaces
 
 - **Claude Code subagent** (native lane): the `Agent` tool, with `isolation: "worktree"` for mutations. It runs in the background and notifies on completion; continue it with `SendMessage`.
-- **Devin, OpenCode, Cursor** (ACP lanes): the ACP bridge bundled with this plugin. In this skill and its references, `acp` stands for `node "${CLAUDE_PLUGIN_ROOT}/scripts/acp.mjs"`; always run that full form, because the plugin's `bin/acp` shortcut is not on `PATH` in every environment. Each agent runs in its own harness, with its own tools, login, and billing.
+- **Devin, OpenCode, Cursor, Antigravity** (bridge lanes): the agent bridge bundled with this plugin. In this skill and its references, `acp` stands for `node "${CLAUDE_PLUGIN_ROOT}/scripts/acp.mjs"`; always run that full form, because the plugin's `bin/acp` shortcut is not on `PATH` in every environment. Devin, OpenCode and Cursor are driven over ACP; the Antigravity CLI (`agy`) has no ACP server, so the bridge runs it in print mode behind a gate hook with the same commands, policies and approvals. Each agent runs in its own harness, with its own tools, login, and billing.
 - **Manual advisor**: a paste-ready prompt for the owner. Nothing is dispatched.
 
-Run `acp doctor` once per session before choosing an ACP lane. A missing CLI is an unavailable lane, not something to install. The `/approval-gated-orchestrator:setup` skill covers installation when the owner asks for it.
+Antigravity models are also reachable through OpenCode (route `Antigravity`, platform `OpenCode`) when the owner's OpenCode has the antigravity-auth plugin; that lane uses OpenCode's agent and ACP approvals. Choose the native `agy` lane when Antigravity's own agent and tools are the point.
+
+Run `acp doctor` once per session before choosing a bridge lane. A missing CLI is an unavailable lane, not something to install. The `/approval-gated-orchestrator:setup` skill covers installation when the owner asks for it.
 
 ## Canonical Model Routing
 

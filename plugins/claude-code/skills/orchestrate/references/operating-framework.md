@@ -86,7 +86,7 @@ Do not preserve a static roster of model families in this skill. Model names, pr
 
 Before creating an executor, search every available surface: running subagents, and running or stopped ACP sessions (`acp list --json`). An exact reuse identity consists of:
 
-- execution platform (`Claude Code`, `Devin Local`, `OpenCode`, `Cursor`);
+- execution platform (`Claude Code`, `Devin Local`, `OpenCode`, `Cursor`, `Antigravity CLI`);
 - provider or backend route;
 - exact model label or ID;
 - reasoning level;
@@ -109,14 +109,15 @@ Prefer a Claude Code subagent when it meets the task: it shares the orchestrator
 
 - OpenCode when a cheaper or specialized provider model (Ollama Cloud, OpenCode Go, and others) is the right capability-cost fit;
 - Cursor when its model catalog or agent is the right fit for the task;
+- Antigravity: through OpenCode when an Antigravity model (Gemini, or Claude on Antigravity quota) is the right fit and OpenCode's agent is acceptable; through the native `agy` lane when Antigravity's own agent and tools (browser, subagents, artifacts) are the point;
 - Devin when its runtime or model catalog is materially useful, or Devin Cloud when the task needs a VM, browser, Docker, services, or long CI that cannot be met locally;
 - manual advisors when the owner controls the handoff.
 
-Every ACP lane sends repository content to that agent's model provider. Before using one, state what leaves the machine and obtain explicit authorization. Before any cloud handoff, inspect the exact transmitted state for secrets, credentials, sensitive data, and unrelated diffs.
+Every bridge lane sends repository content to that agent's model provider. Before using one, state what leaves the machine and obtain explicit authorization. Before any cloud handoff, inspect the exact transmitted state for secrets, credentials, sensitive data, and unrelated diffs.
 
-## ACP Permission Gating
+## Bridge Permission Gating
 
-Choose the session policy from the approved authority: `read-only` for advisors and reviews, `ask` by default for executors, `edits` when the owner approved edits to owned files in a worktree, and `yolo` only with explicit owner approval in a disposable worktree. Known gaps in each agent's native gating are listed in [acp-lanes.md](acp-lanes.md). Cursor, for example, applies edits without asking.
+Choose the session policy from the approved authority: `read-only` for advisors and reviews, `ask` by default for executors, `edits` when the owner approved edits to owned files in a worktree, and `yolo` only with explicit owner approval in a disposable worktree. Known gaps in each agent's native gating are listed in [acp-lanes.md](acp-lanes.md). Cursor, for example, applies edits without asking. Antigravity (`agy`) is gated entirely by the bridge's gate hook, so every one of its tool calls follows the policy.
 
 When a permission request is pending:
 
