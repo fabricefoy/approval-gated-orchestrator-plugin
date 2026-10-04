@@ -2,10 +2,10 @@
 
 Installable plugins for approval-gated, cost-aware project orchestration, for **Claude Code** and **Codex**. The orchestrator prepares a frozen executor prompt, routes it to the cheapest capable lane, waits for the owner's approval before dispatching, gates what the executor may do, and verifies the report independently.
 
-| Platform | Plugin directory | Marketplace manifest |
-|---|---|---|
-| Claude Code | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
-| Codex | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
+| Platform | Plugin version | Plugin directory | Marketplace manifest |
+|---|---|---|---|
+| Claude Code | 0.3.3 | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
+| Codex | 0.1.8 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
 
 Before every dispatch or retry, the orchestrator compares at least two viable model-harness combinations using task fit, required tools, live session and weekly quotas, monetary cost, and expected retry and verification cost. Native-harness convenience does not override a cheaper sufficient route, and capability is escalated only after evidence rules out prompt, context, harness, tool, and permission failures.
 
@@ -68,13 +68,20 @@ node plugins/claude-code/scripts/acp.mjs doctor --handshake
 
 - `$approval-gated-orchestrator`: prepares frozen executor prompts, selects a route, reuses matching tasks, and verifies reports.
 - `$model-routing-refresh`: refreshes a user- or project-owned copy of the dated routing guide when explicitly authorized.
-- A bundled routing snapshot and operating framework, so installation has no required external files.
+- `$prompting-refresh`: refreshes a separate user- or project-owned guide for explicitly covered models when authorized.
+- `$setup`: diagnoses local external-agent lanes without installing or configuring providers.
+- A dependency-free ACP bridge in `scripts/acp.mjs`, with `bin/acp` and `bin/acp.cmd` launchers. It uses Codex-specific session storage (`$CODEX_HOME/acp-bridge/sessions`, defaulting to `~/.codex/acp-bridge/sessions`) and can drive Devin, OpenCode, Cursor, and Antigravity (`agy`) when their CLIs are already installed. Read the bundled `skills/approval-gated-orchestrator/references/acp-bridge.md` for setup and the external-agent workflow.
+- Bundled [routing](plugins/approval-gated-orchestrator/skills/approval-gated-orchestrator/references/model-prompting-and-routing.md) and [prompting](plugins/approval-gated-orchestrator/skills/approval-gated-orchestrator/references/prompting.md) snapshots and an operating framework, so installation has no required external files. The orchestrator loads routing and prompting guides independently, using project, user, then bundled precedence; prompting notes apply only to covered models and do not imply identical behavior across harnesses.
 
 Codex task APIs are native to Codex. CodexBar, Ollama, OpenCode, Devin, Oracle, and Claude Companion are optional integrations and are never installed or configured by this plugin. When CodexBar is unavailable, live provider usage is reported as unknown.
 
 ## Optional CodexBar integration
 
 CodexBar is deliberately not bundled. It is a separately versioned app and CLI with platform-specific releases and provider authentication, so vendoring it would increase maintenance risk and could accidentally package local provider configuration. Install it separately from the official [CodexBar project](https://github.com/steipete/CodexBar#install) and follow its [CLI configuration guide](https://github.com/steipete/CodexBar/blob/main/docs/cli-configuration.md).
+
+## Optional external-agent lanes
+
+The bundled ACP bridge is a local client for external agent CLIs, not a Codex task executor or automatic callback transport. Inspect external session results with `acp wait`; continue polling manually if a turn is still active. It preserves the frozen prompt, route, model, egress, worktree, and permission-policy gates. Devin ACP is separate from the optional `devin-handoff` integration.
 
 When `codexbar` is already installed and configured, the skill may read provider usage with commands such as:
 

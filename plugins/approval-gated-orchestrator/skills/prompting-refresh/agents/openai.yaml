@@ -1,0 +1,7 @@
+interface:
+  display_name: "Prompting Refresh"
+  short_description: "Refresh the dated model-prompting guide"
+  default_prompt: "Use $prompting-refresh to refresh my authorized model-prompting guide."
+
+policy:
+  allow_implicit_invocation: true

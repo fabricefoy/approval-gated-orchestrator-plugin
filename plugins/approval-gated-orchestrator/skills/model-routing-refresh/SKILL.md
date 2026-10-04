@@ -1,6 +1,6 @@
 ---
 name: model-routing-refresh
-description: Refresh a user- or project-owned point-in-time guide for model prompting, benchmark-aware routing, execution lanes, and pricing when the model landscape changes.
+description: Refresh a user- or project-owned point-in-time guide for model capability, benchmark-aware routing, execution lanes, and pricing when the model landscape changes.
 ---
 
 # Model Routing Refresh
@@ -16,7 +16,7 @@ Do not edit the installed plugin's bundled snapshot. It is a versioned fallback;
 ## Workflow
 
 1. Read the existing target, or the bundled snapshot when creating the target. Preserve useful structure and prior decisions; update the date and increment the version.
-2. Use live web research. Start with official model, prompting, and pricing documentation. Verify exact model names before adding or removing them.
+2. Use live web research. Start with official model capability and pricing documentation. Verify exact model names before adding or removing them. Prompting practices belong in the separate `$prompting-refresh` guide.
 3. For comparisons, use a current independent benchmark source with multiple task families and disclosed methodology. Record the benchmark version and access date.
 4. Check current pricing for every included model. Label direct and routed pricing distinctly. Never silently treat a missing price as zero.
 5. Keep recommendations capability-specific. Separate measured results from qualitative judgment, and mark missing or incomparable data as `—`.
@@ -29,7 +29,6 @@ Do not edit the installed plugin's bundled snapshot. It is a versioned fallback;
 The guide must contain:
 
 - date and version;
-- provider-neutral prompting guidance and relevant model-specific notes;
 - capability classification;
 - a performance-versus-cost routing matrix;
 - explicit pricing basis and evidence labels;

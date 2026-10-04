@@ -69,7 +69,7 @@ Use project-specific gates when the repository defines them. Do not force irrele
 Before every dispatch:
 
 1. Read the nearest applicable project instructions and any documents explicitly declared canonical. Common examples are `AGENTS.md`, progress state, lessons, and architecture maps, but filenames and existence are project-specific.
-2. Read the routing guide selected by the main skill's Canonical Model Routing precedence. Use its provider-neutral prompt structure, capability classification, performance/cost matrix, model-specific prompting notes, lane requirements, and limitations.
+2. Read the routing guide selected by the main skill's Canonical Model Routing precedence for capability, cost, and execution lanes. Read prompting guidance under the separate Canonical Prompting Guidance precedence for the selected provider model and harness. Use only applicable covered-model advice; do not extrapolate or append either full guide to the frozen executor prompt.
 3. Identify one bounded task with an observable completion condition.
 4. Classify difficulty, duration, modality, failure cost, data sensitivity, context size, and tool requirements.
 5. Inspect available models, lanes, reasoning levels, and current usage. If live usage cannot be obtained, label it unknown and do not optimize as though it were free.
@@ -97,7 +97,7 @@ When a platform does not expose or control the route, model, or reasoning level,
 
 ### Routing guide maintenance
 
-Every routing guide is a dated snapshot. If its age or contents make a routing decision unreliable, state the limitation and propose refreshing a user- or project-owned copy as a separate owner-approved action. Do not run web research or edit a guide during ordinary orchestration. Once authorized, use `$model-routing-refresh`; that skill owns versioning, current sources, benchmarks, prices, and shortlist maintenance.
+Every routing or prompting guide is a dated snapshot. If its age or contents make a decision unreliable, state the limitation and propose refreshing a user- or project-owned copy as a separate owner-approved action. Do not run web research or edit a guide during ordinary orchestration. Once authorized, use `$model-routing-refresh` for routing evidence or `$prompting-refresh` for prompting guidance.
 
 ## Lane Selection
 

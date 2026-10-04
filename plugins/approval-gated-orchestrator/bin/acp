@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# acp: ACP bridge for Devin, OpenCode and Cursor agents (see scripts/acp.mjs)
+exec node "$(dirname "$0")/../scripts/acp.mjs" "$@"
