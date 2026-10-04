@@ -75,7 +75,7 @@ Before every dispatch:
 3. Identify one bounded task with an observable completion condition.
 4. Classify difficulty, duration, modality, failure cost, data sensitivity, context size, and tool requirements.
 5. Inspect available lanes (`acp doctor`), models (`acp options`), reasoning levels, and current usage (`acp usage --json`: CodexBar CLI first, each provider's own method as fallback). If live usage cannot be obtained, label it unknown and do not optimize as though it were free. A lane near a limit (for example a 5-hour window almost used) is a routing constraint: prefer another lane or wait for the reset rather than starting a long task that may be cut off.
-6. Prefer the least expensive option likely to pass, accounting for retry risk and verification cost.
+6. Before every dispatch or retry, compare at least two viable model-harness combinations using task complexity, required tools, live session and weekly quotas, monetary cost, and expected retry and verification cost. If fewer than two combinations are viable, state why. Choose the least expensive sufficient option.
 7. Search running subagents and `acp list --json` for an exact reusable match.
 8. Present the routing summary and complete executor prompt to the owner.
 9. Dispatch only after explicit approval. Start the callback signal, confirm the executor title, id, and worktree to the owner, then return rather than blocking on the executor. Verify the result when the callback arrives.
@@ -105,7 +105,13 @@ Every routing guide is a dated snapshot. If its age or contents make a routing d
 
 ## Lane Selection
 
-Prefer a Claude Code subagent when it meets the task: it shares the orchestrator's tools and needs no extra setup. Use another lane for a concrete advantage:
+Native Claude Code integration is one comparison factor, not a default that overrides cost. Use it when it wins the comparison; choose a cheaper sufficient route when one exists.
+
+If a dated routing guide describes any native lane as the default, this mandatory current comparison controls the dispatch decision.
+
+A failed attempt is not by itself evidence that the model lacks capability. Diagnose missing context, prompt defects, harness or tool gaps, and permission limits before escalating model capability. Escalate only when evidence shows a capability failure.
+
+Use another lane when it wins the comparison, for example:
 
 - OpenCode when a cheaper or specialized provider model (Ollama Cloud, OpenCode Go, and others) is the right capability-cost fit;
 - Cursor when its model catalog or agent is the right fit for the task;

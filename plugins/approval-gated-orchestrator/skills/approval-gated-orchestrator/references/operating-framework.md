@@ -73,7 +73,7 @@ Before every dispatch:
 3. Identify one bounded task with an observable completion condition.
 4. Classify difficulty, duration, modality, failure cost, data sensitivity, context size, and tool requirements.
 5. Inspect available models, lanes, reasoning levels, and current usage. If live usage cannot be obtained, label it unknown and do not optimize as though it were free.
-6. Prefer the least expensive option likely to pass, accounting for retry risk and verification cost.
+6. Before every dispatch or retry, compare at least two viable model-harness combinations using task complexity, required tools, live session and weekly quotas, monetary cost, and expected retry and verification cost. If fewer than two combinations are viable, state why. Choose the least expensive sufficient option.
 7. Search visible active, idle, pinned, archived, and locally registered tasks for an exact reusable match when the environment exposes those surfaces.
 8. Present the routing summary and complete executor prompt to the owner.
 9. Dispatch only after explicit approval. Confirm the executor title, task ID, and host ID to the owner, then return rather than routinely blocking on the executor. Require the callback contract below and verify the result when it arrives.
@@ -101,7 +101,11 @@ Every routing guide is a dated snapshot. If its age or contents make a routing d
 
 ## Lane Selection
 
-Prefer the native Codex task lane when it meets the task because it usually provides the strongest task reuse, monitoring, worktree, and report-back integration.
+Native Codex integration is one comparison factor, not a default that overrides cost. Use it when it wins the comparison; choose a cheaper sufficient route when one exists.
+
+If a dated routing guide describes native Codex as the default, this mandatory current comparison controls the dispatch decision.
+
+A failed attempt is not by itself evidence that the model lacks capability. Diagnose missing context, prompt defects, harness or tool gaps, and permission limits before escalating model capability. Escalate only when evidence shows a capability failure.
 
 Use another lane only for a concrete advantage:
 
