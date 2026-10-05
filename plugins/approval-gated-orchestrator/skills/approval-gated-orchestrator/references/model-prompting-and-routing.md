@@ -1,97 +1,17 @@
-Date: 2026-09-19
-Version: 1.12
+Date: 2026-10-04
+Version: 1.16
 
-# Model Prompting and Routing Guide
+# Model Routing Guide
 
-This is a point-in-time routing guide for public model APIs and hosted model catalogs. “Latest” means the newest model family or release visible in the sources below on 2026-09-19. Provider-specific snapshots retain their own stated dates. Recheck before making a production choice.
+This is a point-in-time routing guide for public model APIs and hosted model catalogs. “Latest” means the newest model family or release visible in the sources below on 2026-10-03. Provider-specific snapshots retain their own stated dates. Recheck before making a production choice.
 
-## Part 1: Prompting Guidance and Principles
+Prompting guidance for covered models is maintained separately in [`prompting.md`](prompting.md). This guide covers routing evidence, model capabilities, costs, and execution lanes.
 
-### A provider-neutral prompt shape
-
-Use this compact structure for most tasks:
-
-```text
-Role: [specialization and operating posture]
-Objective: [one observable outcome]
-Context: [facts, files, data, audience, and source authority]
-Constraints: [scope, safety, format, length, time, and budget]
-Method: [only the checks or tools that are actually needed]
-Output: [exact sections, schema, or artifact]
-Acceptance criteria:
-- [testable condition 1]
-- [testable condition 2]
-If information is missing: state the assumption or ask one focused question only when it changes the result.
-```
-
-### Principles that transfer across the models
-
-1. State the outcome and acceptance criteria. “Analyze this” is weaker than “rank the three options, cite the evidence, and recommend one under a $500 limit.”
-2. Put authoritative context before the request when supplying long documents. Label sources, dates, and uncertainty.
-3. Separate instructions, context, examples, and input. XML tags or clear Markdown headings are useful when the prompt mixes several document types.
-4. Use a small number of representative examples for stable style or extraction. Three to five diverse examples are usually enough; include edge cases rather than many near-duplicates.
-5. Specify output shape directly. For machine use, give a JSON schema or field list, permitted values, null behavior, and one example.
-6. Calibrate effort to task complexity. Use low effort for short, bounded transformations; raise effort for multistep reasoning, research, coding, tool use, or ambiguous evidence.
-7. Ask for verification that is proportionate to risk. Require source checks, tests, or reconciliation for decisions; do not add repeated “double-check” loops to trivial work.
-8. Make tool policy explicit. Say when to search, browse, call an API, or avoid a tool. Require the model to distinguish retrieved facts from inference.
-9. Make scope and autonomy explicit. State what is authorized, what requires approval, and what is out of scope. Tell an agent to finish the requested reversible work instead of stopping at a plan.
-10. Keep a stable prompt prefix for caching. Put durable instructions and reference material first; append changing user data later.
-11. Evaluate prompts on a task set. Measure correctness, omission, format validity, latency, token use, and cost. Do not infer quality from a single impressive answer.
-12. Treat names, prices, APIs, and benchmark scores as volatile facts. Search current sources instead of relying on model memory.
-
-### OpenAI-specific guidance
-
-The official OpenAI guide describes GPT-6 Astra as the newest frontier model and documents GPT-5.6 as the preceding family. Use the exact API model IDs shown by the account or deployment; the names below are the current model labels requested for this guide.
-
-- GPT-6 Astra: Give a clear outcome, scope, writing style, delegation policy, and test boundary. Astra is more likely to ask for clarification and tends toward detailed formatting; explicitly tell it when to make routine assumptions and persist. It can use structured outputs, tool calling, computer use, asynchronous tool calls, mid-turn steering, and adjustable reasoning. It does not support `none` reasoning effort.
-- GPT-5.6 Sol: Use for demanding general reasoning, coding, and professional work. Define the deliverable and evidence threshold up front; use higher reasoning for long-horizon or failure-sensitive work and a cheaper tier for bounded transformations.
-- GPT-5.6 Terra: Use when multimodal or engineering depth matters but the task does not require the maximum frontier tier. State the files, interfaces, visual evidence, and tests that define completion.
-- GPT-5.6 Luna: Use for fast, high-volume, or cost-sensitive work. Keep prompts narrow, specify the exact output schema, and route uncertain or multi-step cases upward rather than adding elaborate prompt scaffolding.
-
-For all four, prefer the Responses API for tool workflows, use structured outputs for machine-consumed results, and avoid unsupported sampling parameters when the model documentation disallows them. Change reasoning deliberately and compare the result against a fixed eval set.
-
-### Anthropic-specific guidance
-
-Anthropic’s current lineup lists Claude Fable 5.1 for demanding reasoning and long-horizon agentic work, Claude Opus 5 for complex agentic coding and enterprise work, and Claude Sonnet 5 for the speed/intelligence balance. Current public API pricing is listed as $10/$50, $5/$25, and $2/$10 per million input/output tokens respectively.
-
-- Claude Fable 5.1: Use the default `high` effort as a starting point, then test `low`, `medium`, `xhigh`, and `max` on the actual evals. For long agent loops, request concise progress updates, batch independent tool calls, keep conversation history append-only, and tell the model to finish the full requested task. At low effort, explicitly request search when freshness matters; for small file changes, request targeted edits rather than whole-file rewrites.
-- Claude Opus 5: Give the full specification up front for difficult coding and agentic work. It self-corrects and verifies well, so avoid redundant “double-check” scaffolding. Control visible length explicitly, cap subagent delegation to genuinely independent work, and use lower effort when quality holds.
-- Claude Sonnet 5: Use adaptive thinking and the `effort` parameter as the primary quality/cost control. `high` is the default, `xhigh` suits the hardest coding and agentic tasks, and `low` is for short scoped work. Its instruction following is literal, so state whether a rule applies to every item. Prompt explicit tool-use conditions when search or tools are required, and leave `max_tokens` headroom for thinking and tools on long tasks.
-
-For all current Claude models, be direct, explain important context, use XML tags for mixed inputs, and use relevant few-shot examples. Do not use manual extended-thinking settings or sampling parameters that the current model rejects.
-
-### Reusable high-reliability prompt
-
-```text
-You are [role]. Complete [observable outcome] for [audience].
-
-<context>
-[authoritative facts, files, data, and dates]
-</context>
-
-<constraints>
-- Stay within [scope].
-- Use [tools/sources] only when [condition].
-- Separate verified facts, calculations, and inferences.
-- Do not invent missing values; use null or state the gap.
-</constraints>
-
-<deliverable>
-[exact format, length, schema, and ordering]
-</deliverable>
-
-<acceptance>
-[testable completion criteria]
-</acceptance>
-
-Choose an appropriate effort level. Finish the authorized work, then report assumptions, evidence, and residual uncertainty briefly.
-```
-
-## Part 2: Model Routing
+## Model Routing
 
 ### Benchmark basis
 
-The main comparison source is Artificial Analysis Intelligence Index v4.3. In this snapshot it combines ten evaluations: AA-Briefcase, GDPval-AA v2, AutomationBench-AA, Terminal-Bench 4.0, SciCode, Humanity’s Last Exam, GDP.pdf, CritPt, AA-Omniscience, and AA-LCR v1.1. These cover agentic knowledge work, professional tasks, SaaS automation, terminal coding, science, physics, document reasoning, knowledge/grounding, and long-context reasoning.
+The main comparison source is Artificial Analysis Intelligence Index v4.3.2. In this snapshot it combines ten evaluations: AA-Briefcase v1.1, GDPval-AA v2.1, AutomationBench-AA, Terminal-Bench 4.0, SciCode, Humanity’s Last Exam, GDP.pdf, CritPt, AA-Omniscience, and AA-LCR v1.1. These cover agentic knowledge work, professional tasks, SaaS automation, terminal coding, science, physics, document reasoning, knowledge/grounding, and long-context reasoning. The current release feed also exposes capability-specific evidence for newer September releases such as Gemini 4 Argon, GPT-6.1 Sol, Claude Sonnet 5.5, Claude Opus 5.5, GPT-6 Luna, Grok 4.7, MiMo-V2.6 Flash/Pro, Step 5 Preview, and DeepSeek V4.1 Flash.
 
 Use the composite score as a screening signal, not as a universal truth. For a real deployment, rerun a capability-specific eval with the actual prompt, tools, context size, latency target, and failure costs.
 
@@ -111,72 +31,72 @@ Use the composite score as a screening signal, not as a universal truth. For a r
 
 ### Cost convention
 
-The table below uses current OpenRouter catalog prices as a comparable hosted-routing snapshot. Values are USD per 1 million blended tokens using a 3:1 input-to-output mix: `0.75 × input price + 0.25 × output price`. They are not a promise of direct-provider pricing, availability, or latency. Cost bands are: low `< $0.50`, middle `$0.50–$3.00`, expensive `> $3.00`.
+The table below uses the public OpenRouter catalog rechecked on 2026-10-03 as a comparable hosted-routing snapshot. Values are USD per 1 million blended tokens using a 3:1 input-to-output mix: `0.75 × input price + 0.25 × output price`. They are not a promise of direct-provider pricing, availability, or latency. Cost bands are: low `< $0.50`, middle `$0.50–$3.00`, expensive `> $3.00`.
 
-“AA v4.3 score” is the current Artificial Analysis Intelligence Index where a score was visible in the snapshot. A dash means the model was included as a current specialist/value candidate but did not have a comparable current composite score; it is not a zero.
+“AA v4.3.2 score” is the current Artificial Analysis Intelligence Index where a score was visible in the snapshot. A dash means the model was included as a current specialist/value candidate but did not have a comparable current composite score; it is not a zero.
 
 ### Best-50 current shortlist
 
-This is a capability-balanced shortlist, not a claim that one scalar leaderboard settles every workload. It is ordered roughly by measured general intelligence, then by capability coverage and cost-efficient alternatives. Routed prices were checked for all 50 entries; a dash marks a model that was not present in the current public routed catalog.
+This is a capability-balanced shortlist, not a claim that one scalar leaderboard settles every workload. It is ordered roughly by measured general intelligence, then by capability coverage and cost-efficient alternatives. Newly released September models are retained in the lower half to minimize churn in existing row references; row number is not a claim of exact rank. GPT-5.6 Sol, Terra, and Luna remain intentionally listed for backward-compatible routing. Routed prices were checked for all 50 entries; a dash marks a model that was not present in the current public routed catalog.
 
 | # | Model / provider | Evidence | Blended $/M | Cost | Performance for best-fit work | Best-fit capabilities |
 |---:|---|---:|---:|---|---|---|
-| 1 | Claude Fable 5.1 / Anthropic | AA v4.3 53.4 | 20.00 | Expensive | High | C1, C5, C6 |
-| 2 | GPT-6 Astra / OpenAI | AA v4.3 52.8 | 20.00 | Expensive | High | C1, C2, C4, C6 |
-| 3 | Claude Opus 5 / Anthropic | AA v4.3 50.7 | 10.00 | Expensive | High | C1, C2, C4, C5 |
-| 4 | Claude Fable 5 / Anthropic | — | 20.00 | Expensive | High | C1, C5, C6 |
-| 5 | Muse Spark 1.3 / Meta | — | 2.00 | Middle | High | C4, C8 |
-| 6 | GPT-5.6 Sol / OpenAI | AA v4.3 47.1 | 4.00 | Expensive | High | C1, C2, C6 |
-| 7 | Grok 4.6 / xAI | AA v4.3 44.4 | 3.00 | Middle | High | C1, C6, C8 |
-| 8 | Kimi K3 / Moonshot AI | AA v4.3 43.8 | 3.40 | Expensive | High | C1, C2, C5 |
-| 9 | GLM-5.3 / Z AI | AA v4.3 44.9 | 1.40 | Middle | High | C1, C2, C3 |
-| 10 | Gemini 3.8 Flash / Google | AA v4.3 41.2 | 1.50 | Middle | High | C4, C5, C6 |
-| 11 | GPT-5.6 Terra / OpenAI | AA v4.3 42.3 | 4.50 | Expensive | High | C2, C3, C4, C6 |
-| 12 | Qwen3.8 2.4T A95B / Alibaba | AA v4.3 40.0 | 3.00 | Middle | High | C1, C2, C5 |
-| 13 | GLM-5.3 Flash / Z AI | AA v4.3 41.9 | 0.14 | Low | High | C2, C7, C9 |
-| 14 | GPT-5.6 Luna / OpenAI | AA v4.3 37.5 | 0.45 | Low | High | C7, C8, C9 |
-| 15 | DeepSeek V4 Pro 0813 / DeepSeek | AA v4.3 36.3 | 0.87 | Middle | High | C1, C2, C3 |
-| 16 | Qwen3.8 27B / Alibaba | AA v4.3 33.9 | 0.80 | Middle | High | C2, C7, C9 |
-| 17 | Gemini 3.7 Flash / Google | AA v4.3 39.4 | 1.50 | Middle | High | C4, C6, C8 |
-| 18 | Claude Sonnet 5 / Anthropic | AA v4.3 38.4 | 4.00 | Expensive | High | C2, C7, C8 |
-| 19 | Grok 4.5 / xAI | AA v4.3 39.1 | 3.00 | Middle | High | C1, C8 |
-| 20 | Qwen3.8 Max / Alibaba | AA v4.3 45.4 | 3.00 | Middle | High | C1, C5, C6 |
+| 1 | Claude Fable 5.1 / Anthropic | AA v4.3.2 53 | 20.00 | Expensive | High | C1, C5, C6 |
+| 2 | GPT-6 Astra / OpenAI | AA v4.3.2 53 | 20.00 | Expensive | High | C1, C2, C4, C6 |
+| 3 | Claude Opus 5 / Anthropic | AA v4.3.2 50.8 | 10.00 | Expensive | High | C1, C2, C4, C5 |
+| 4 | Claude Fable 5 / Anthropic | AA v4.3.2 49.6 | 20.00 | Expensive | High | C1, C5, C6 |
+| 5 | Muse Spark 1.3 / Meta | AA v4.3.2 48 | 2.00 | Middle | High | C4, C8 |
+| 6 | GPT-5.6 Sol / OpenAI | AA v4.3.2 47.0 | 4.00 | Expensive | High | C1, C2, C6 |
+| 7 | Grok 4.6 / xAI | AA v4.3.2 44.3 | 3.00 | Middle | High | C1, C6, C8 |
+| 8 | Kimi K3 / Moonshot AI | AA v4.3.2 44 | 5.40 | Expensive | High | C1, C2, C5 |
+| 9 | GLM-5.3 / Z AI | AA v4.3.2 45 | 2.15 | Middle | High | C1, C2, C3 |
+| 10 | Gemini 3.8 Flash / Google | AA v4.3.2 41 | 1.50 | Middle | High | C4, C5, C6 |
+| 11 | GPT-5.6 Terra / OpenAI | AA v4.3.2 42 | 4.50 | Expensive | High | C2, C3, C4, C6 |
+| 12 | Qwen3.8 2.4T A95B / Alibaba | AA v4.3.2 40 | 3.00 | Middle | High | C1, C2, C5 |
+| 13 | GLM-5.3 Flash / Z AI | AA v4.3.2 42 | 0.24 | Low | High | C2, C7, C9 |
+| 14 | GPT-5.6 Luna / OpenAI | AA v4.3.2 37.3 | 0.45 | Low | High | C7, C8, C9 |
+| 15 | DeepSeek V4 Pro 0813 / DeepSeek | AA v4.3.2 36 | 0.99 | Middle | High | C1, C2, C3 |
+| 16 | Qwen3.8 27B / Alibaba | AA v4.3.2 34 | 1.06 | Middle | High | C2, C7, C9 |
+| 17 | Gemini 3.7 Flash / Google | AA v4.3.2 39.1 | 1.50 | Middle | High | C4, C6, C8 |
+| 18 | Claude Sonnet 5.5 / Anthropic | AA v4.3.2 56 | 4.00 | Expensive | High | C2, C7, C8 |
+| 19 | Grok 4.5 / xAI | AA v4.3.2 38.8 | 3.00 | Middle | High | C1, C8 |
+| 20 | Qwen3.8 Max / Alibaba | AA v4.3.2 45 | 3.00 | Middle | High | C1, C5, C6 |
 | 21 | Qwen3.8 Flash / Alibaba | — | 0.23 | Low | Middle | C7, C8, C9 |
-| 22 | Qwen3.7 Max / Alibaba | AA v4.3 29.9 | 2.21 | Middle | High | C1, C2, C5 |
-| 23 | Qwen3.7 Plus / Alibaba | AA v4.3 25.8 | 0.56 | Middle | High | C2, C7 |
+| 22 | Qwen3.7 Max / Alibaba | AA v4.3.2 29.5 | 2.21 | Middle | High | C1, C2, C5 |
+| 23 | Qwen3.7 Plus / Alibaba | AA v4.3.2 25.2 | 0.56 | Middle | High | C2, C7 |
 | 24 | Qwen3.7 Flash / Alibaba | — | 0.06 | Low | Middle | C7, C9 |
-| 25 | Gemini 3.6 Flash / Google | AA v4.3 34.3 | 1.50 | Middle | High | C4, C6, C8 |
-| 26 | Gemini 3.5 Flash / Google | AA v4.3 33.0 | 3.38 | Expensive | High | C4, C8 |
-| 27 | Gemini 3.5 Flash-Lite / Google | AA v4.3 22.7 | 0.85 | Middle | Middle | C7, C8, C9 |
-| 28 | Gemini 3.1 Pro Preview / Google | AA v4.3 30.4 | 4.50 | Expensive | High | C1, C3, C5 |
-| 29 | Claude Sonnet 4.6 / Anthropic | — | 4.50 | Expensive | High | C2, C7, C8 |
+| 25 | Gemini 3.6 Flash / Google | AA v4.3.2 34 | 1.50 | Middle | High | C4, C6, C8 |
+| 26 | Gemini 4 Argon / Google | AA v4.3.2 53 | — | — | High | C1, C4, C5, C6 |
+| 27 | Step 5 Preview / StepFun | AA v4.3.2 44 | — | — | High | C1, C2, C3, C5 |
+| 28 | Gemini 3.1 Pro Preview / Google | AA v4.3.2 29.7 | 4.50 | Expensive | High | C1, C3, C5 |
+| 29 | Claude Sonnet 4.6 / Anthropic | AA v4.3.2 30.1 | 6.00 | Expensive | High | C2, C7, C8 |
 | 30 | GPT-5.3 Codex / OpenAI | — | 4.81 | Expensive | High | C2, C6 |
-| 31 | DeepSeek V4 Pro / DeepSeek | AA v4.3 30.9 | 0.62 | Middle | High | C1, C2, C3 |
-| 32 | DeepSeek V4 Flash / DeepSeek | AA v4.3 24.8 | 0.06 | Low | Middle | C2, C7, C9 |
-| 33 | DeepSeek V4 Flash 0731 / DeepSeek | AA v4.3 34.5 | 0.05 | Low | High | C2, C7, C9 |
-| 34 | GLM-5.2 / Z AI | AA v4.3 34.0 | 0.85 | Middle | High | C2, C3, C5, C6 |
-| 35 | MiniMax-M3 / MiniMax | AA v4.3 29.6 | 0.53 | Middle | High | C1, C2, C8 |
-| 36 | MiMo-V2.5 Pro / Xiaomi | AA v4.3 26.4 | 0.54 | Middle | High | C2, C3 |
-| 37 | MiMo-V2.5 / Xiaomi | AA v4.3 22.3 | 0.18 | Low | Middle | C7, C9 |
-| 38 | Qwen3.5 397B A17B / Alibaba | AA v4.3 19.1 | 1.29 | Middle | Middle | C1, C2, C5 |
-| 39 | Qwen3.5 122B A10B / Alibaba | AA v4.3 16.2 | 0.72 | Middle | Middle | C2, C7, C9 |
-| 40 | Qwen3.5 35B A3B / Alibaba | — | 0.45 | Low | Middle | C7, C9 |
-| 41 | Muse Spark 1.2 / Meta | AA v4.3 39.8 | 2.00 | Middle | High | C4, C8 |
-| 42 | Llama 4 Maverick / Meta | AA v4.3 9.3 | 0.30 | Low | Middle | C4, C8, C9 |
-| 43 | Llama 4 Scout / Meta | AA v4.3 6.5 | 0.15 | Low | Middle | C4, C5, C9 |
-| 44 | Mistral Medium 3.5 / Mistral | AA v4.3 14.9 | 3.00 | Middle | Middle | C2, C8 |
-| 45 | Devstral 2 / Mistral | AA v4.3 9.4 | 0.80 | Middle | High | C2, C9 |
-| 46 | Mistral Large 3 / Mistral | — | — | — | Middle | C2, C8, C9 |
-| 47 | Mistral Small 4 / Mistral | AA v4.3 11.5 | 0.26 | Low | Middle | C7, C9 |
-| 48 | gpt-oss-120b / OpenAI | AA v4.3 12.3 | 0.26 | Low | Middle | C2, C7, C9 |
-| 49 | Nova 2.0 Lite / Amazon | — | 0.85 | Middle | Middle | C4, C7 |
-| 50 | Command A / Cohere | AA v4.3 13.9 | 4.38 | Expensive | Middle | C6, C8 |
+| 31 | DeepSeek V4 Pro / DeepSeek | AA v4.3.2 30.4 | 0.26 | Low | High | C1, C2, C3 |
+| 32 | DeepSeek V4 Flash / DeepSeek | AA v4.3.2 24.2 | 0.04 | Low | Middle | C2, C7, C9 |
+| 33 | DeepSeek V4 Flash 0731 / DeepSeek | AA v4.3.2 34.3 | 0.33 | Low | High | C2, C7, C9 |
+| 34 | GLM-5.2 / Z AI | AA v4.3.2 33.7 | 1.30 | Middle | High | C2, C3, C5, C6 |
+| 35 | MiniMax-M3 / MiniMax | AA v4.3.2 29.2 | 0.52 | Middle | High | C1, C2, C8 |
+| 36 | MiMo-V2.5 Pro / Xiaomi | AA v4.3.2 26 | 0.54 | Middle | High | C2, C3 |
+| 37 | MiMo-V2.6 Flash / Xiaomi | AA v4.3.2 38 | 0.18 | Low | High | C2, C4, C7, C9 |
+| 38 | Qwen3.8 Flash Next / Alibaba | AA v4.3.2 40 | — | — | High | C4, C7, C9 |
+| 39 | DeepSeek V4 Flash Vision / DeepSeek | AA v4.3.2 35 | 0.32 | Low | High | C4, C7, C9 |
+| 40 | Claude Opus 5.5 / Anthropic | AA v4.3.2 58 | 8.00 | Expensive | High | C1, C2, C5, C6 |
+| 41 | Muse Spark 1.2 / Meta | AA v4.3.2 39.6 | 2.00 | Middle | High | C4, C8 |
+| 42 | Llama 4 Maverick / Meta | — | 0.30 | Low | Middle | C4, C8, C9 |
+| 43 | GPT-6.1 Sol / OpenAI | AA v4.3.2 52 | 4.00 | Expensive | High | C1, C2, C6 |
+| 44 | Mistral Medium 3.5 / Mistral | AA v4.3.2 14.2 | 3.00 | Middle | Middle | C2, C8 |
+| 45 | Devstral 2 / Mistral | AA v4.3.2 8.6 | 0.80 | Middle | High | C2, C9 |
+| 46 | GPT-6 Luna / OpenAI | AA v4.3.2 38 | 0.20 | Low | High | C7, C8, C9 |
+| 47 | Grok 4.7 / xAI | AA v4.3.2 46 | 3.00 | Middle | High | C1, C2, C6, C8 |
+| 48 | gpt-oss-120b / OpenAI | — | 0.07 | Low | Middle | C2, C7, C9 |
+| 49 | MiMo-V2.6 Pro / Xiaomi | AA v4.3.2 46 | 0.54 | Middle | High | C2, C3, C4 |
+| 50 | DeepSeek V4.1 Flash / DeepSeek | AA v4.3.2 39 | 0.52 | Middle | High | C2, C7, C9 |
 
 ### GLM-5.2 focused analysis
 
-GLM-5.2 is a strong open-weight text reasoning option rather than a general multimodal model. Artificial Analysis now reports an Intelligence Index score of 34, rank 9 of 113 comparable models, 71.8 output tokens/second, a 1M-token context window, 753B total parameters with 40B active per token, and an MIT license. The page marks it deprecated and recommends GLM-5.3 for new work. Its input modality is text only, so do not route image, chart, or document-vision work to it without a separate extraction stage.
+GLM-5.2 is a strong open-weight text reasoning option rather than a general multimodal model. Artificial Analysis reports an Intelligence Index score of about 34, 71.8 output tokens/second, a 1M-token context window, 753B total parameters with 40B active per token, and an MIT license. The page marks it deprecated and recommends GLM-5.3 for new work. Its input modality is text only, so do not route image, chart, or document-vision work to it without a separate extraction stage.
 
-The direct pricing snapshot is $1.40 per 1M input tokens and $4.40 per 1M output tokens, which is $2.15/M under the guide’s 3:1 blend. The current OpenRouter routed catalog lists approximately $0.554/$1.742 input/output, or $0.85/M blended. That makes GLM-5.2 a middle-cost, high-performance candidate for agentic coding, technical reasoning, long-context text synthesis, and tool workflows, especially when open weights or deployment control matter. Because the benchmark page now marks it deprecated, prefer GLM-5.3 for new work when its newer release and task-specific evals outperform GLM-5.2; retain GLM-5.2 when its measured quality, license, or deployment path is the better fit.
+The direct pricing snapshot is $1.40 per 1M input tokens and $4.40 per 1M output tokens, which is $2.15/M under the guide’s 3:1 blend. The current OpenRouter routed catalog lists approximately $0.41/$3.99 input/output, or $1.30/M blended. That makes GLM-5.2 a middle-cost, high-performance candidate for agentic coding, technical reasoning, long-context text synthesis, and tool workflows, especially when open weights or deployment control matter. Because the benchmark page now marks it deprecated, prefer GLM-5.3 for new work when its newer release and task-specific evals outperform GLM-5.2; retain GLM-5.2 when its measured quality, license, or deployment path is the better fit.
 
 ### Ollama Cloud: price- and quota-aware routing
 
@@ -206,8 +126,8 @@ Performance is the expected result for the selected capability, not a global mod
 
 | Performance \ Cost | Low: < $0.50/M | Middle: $0.50–$3.00/M | Expensive: > $3.00/M |
 |---|---|---|---|
-| High | GLM-5.3 Flash, GPT-5.6 Luna, DeepSeek V4 Flash 0731 for bounded or cost-sensitive work | Gemini 3.8 Flash, GLM-5.3, Grok 4.6, Qwen3.8, Muse Spark 1.3 for strong general/value routing | GPT-6 Astra, Claude Fable 5.1, Claude Opus 5, GPT-5.6 Sol for frontier reasoning, agentic coding, and high-risk work |
-| Middle | Qwen3.7 Flash, MiMo-V2.5, Mistral Small 4, gpt-oss-120b for extraction, batch transforms, or local/open-weight paths | Qwen3.7 Plus, MiniMax-M3, MiMo-V2.5 Pro, Devstral 2, Nova 2.0 Lite for balanced production workloads | Claude Sonnet 5, GPT-5.6 Terra, GPT-5.3 Codex, Gemini 3.1 Pro, Command A when a specific modality or tool path justifies the price |
+| High | GPT-6 Luna, GPT-5.6 Luna, GLM-5.3 Flash, DeepSeek V4 Flash 0731 for bounded or cost-sensitive work | Gemini 3.8 Flash, GLM-5.3, Grok 4.7, MiMo-V2.6 Pro, Qwen3.8 for strong general/value routing | Claude Opus 5.5, GPT-6 Astra, Claude Fable 5.1, GPT-6.1 Sol, GPT-5.6 Sol for frontier reasoning, agentic coding, and high-risk work |
+| Middle | Qwen3.7 Flash, MiMo-V2.5, gpt-oss-120b for extraction, batch transforms, or local/open-weight paths | Qwen3.7 Plus, MiniMax-M3, MiMo-V2.5 Pro, MiMo-V2.6 Pro, DeepSeek V4.1 Flash, Devstral 2 for balanced production workloads | Claude Sonnet 5.5, GPT-5.6 Terra, GPT-5.3 Codex, Gemini 3.1 Pro when a specific modality or tool path justifies the price |
 | Low | Do not select solely on price; reserve for non-critical drafts or fallback traffic | Use only after a local eval demonstrates acceptable quality and failure cost | Avoid; high spend does not compensate for a capability mismatch |
 
 ### Practical router
@@ -223,43 +143,58 @@ Performance is the expected result for the selected capability, not a global mod
 
 Before creating a task or session, search active, idle, pinned, archived, and locally registered tasks. Reuse, resume, or unarchive an exact match; never create a duplicate. The reuse identity is execution platform, provider or backend route, exact model, reasoning level, exact project, and role. Use `⭐O|<Model> [<Reasoning>]|<Route>|<Platform>` for orchestrators, `💡A|<Model> [<Reasoning>]|<Route>|<Platform>` for advisors, and the unprefixed `<RoleCode>|<Model> [<Reasoning>]|<Route>|<Platform>` form for executors and reviews. The emoji immediately precedes `O` or `A` with no space. Examples are `⭐O|GPT-6 Astra [High]|OpenAI|Codex`, `💡A|GPT-6 Astra [High]|OpenAI|Codex`, `E|GLM 5.3 [High]|Ollama|Codex`, and `E|GLM 5.3 [High]|Ollama|OpenCode`. The emoji is visible-title metadata, not part of reuse identity; reuse and rename an otherwise exact legacy task rather than creating a duplicate. Codex project folders provide the visible project context, but the saved project identity or canonical path remains part of duplicate detection. If a platform does not expose routing details, use a truthful managed label instead of inventing them.
 
-## Part 3: Refresh and Maintenance
+## Refresh and Maintenance
 
-This file is the plugin's bundled fallback snapshot. Ordinary orchestration reads it but never edits it. Use `$model-routing-refresh` only after explicit authorization; refreshed output belongs in a user- or project-owned guide.
+The companion `model-routing-refresh` skill reads this document first, then refreshes the benchmark methodology, 50-model shortlist, and price snapshot. Prompting guidance is maintained separately with `$prompting-refresh`.
 
-### Portable execution lanes
+### External execution lanes: OpenCode and Devin (verified 2026-09-17)
 
-Native Codex remains the default when it meets the acceptance criteria. Other platforms and provider routes are optional runtime integrations, not plugin dependencies.
+Native Codex remains the default. OpenCode and Devin are delegation surfaces, not models in the native Codex selector. Use them only when the lane has a concrete advantage over native execution.
 
-| Platform | Route | Prefer when | Pre-dispatch checks |
+| Lane | Prefer when | Pre-dispatch usage check | Selection status |
 |---|---|---|---|
-| Codex | OpenAI | Native task reuse, worktrees, monitoring, and report-back meet the task | Exact project, model, reasoning, live usage when available, matching-task search |
-| Codex | Ollama | A supported Ollama model is selectable directly in Codex | Exact model ID, supported reasoning, current catalog and usage |
-| OpenCode | Available provider | Local external execution or provider choice is a concrete advantage | Installed health, project path, provider, model, reasoning, owned files, stop condition |
-| Devin Local or Cloud | Devin-managed or exposed provider | Its runtime, VM, browser, Docker, service, or long-CI capability is required | Local/cloud boundary, repository state, secrets, exposed routing metadata, authorization |
+| OpenCode MCP 3.0.0 | A named OpenCode provider/model is requested; bounded work should stay local; local background execution helps | `codexbar usage --provider opencode`; also `codexbar usage --provider opencodego` when relevant | Provider, model, variant, and session title are selectable. OpenCode 1.18.31 at `127.0.0.1:4096` is healthy and configured to auto-start; still run setup/health before dispatch. |
+| Devin handoff 1.4.0 | A cloud VM, browser, Docker, running service, long CI, or independent long-running execution is needed | `codexbar usage --provider devin` | Devin API v3 access through a dedicated Member service user is validated. The handoff creates and polls sessions but does not expose model or reasoning selection. |
 
 Hard rules:
 
-1. Select the lowest-cost platform, route, model, and reasoning level likely to meet the acceptance criteria. Escalate only after a concrete capability failure.
-2. Missing or ambiguous usage is unknown, never zero.
-3. Search all available task surfaces before creation. Reuse, resume, or unarchive an exact match; never create a duplicate.
-4. Use `⭐O|...` for orchestrators, `💡A|...` for advisors, and unprefixed `E|...` or `R|...` for executors and reviews. Project identity remains part of reuse matching but stays out of the visible title.
-5. Preserve task and session IDs. Never resubmit merely because a wait timed out.
-6. Do not install, start, repair, or reconfigure an optional integration without authorization.
-7. Before off-machine work, inspect the exact transmitted state for secrets and unrelated changes and obtain explicit authorization.
-8. If a platform does not expose model or reasoning selection, use a truthful managed label instead of inventing metadata.
+1. Select the lowest-cost lane, model, and reasoning level that can meet the acceptance criteria. Escalate only after a concrete capability failure.
+2. Missing or ambiguous CodexBar output is unknown, never zero. As of 2026-09-17, `codexbar usage --provider opencode` reports an ambiguous `Cost: 111.0 / 0.0`; do not interpret that as available or exhausted quota without provider confirmation.
+3. OpenCode uses one model per session. Follow the cross-platform reuse identity and naming convention above; a different platform, route, model, reasoning level, project, or role gets a different session. Preserve job/session IDs, and never resubmit merely because a wait timed out.
+4. Before OpenCode work, verify the server, provider/model availability, absolute project directory, owned files, checks, and stop condition. Its configured auto-start is normal operation; if setup/health still fails, do not manually repair the service without authorization. Use a separate worktree if another actor may edit the checkout. Review changes before integration.
+5. Before Devin work, verify the remote and branch, inspect tracked changes for secrets or unrelated work, and remember that untracked files are not included while up to 100 KB of tracked uncommitted changes may be transmitted. Record the session URL/ID and inspect the returned branch, commit, PR, tests, and evidence before acceptance.
+6. The current Devin wrapper cannot enforce the requested one-model-per-session naming rule because it cannot select or confirm a model or reasoning level. Use a provider-confirmed model label only when a dispatch surface exposes and verifies that selection; otherwise label the executor as Devin-managed rather than inventing a model.
+7. “GLM 5.2 High reasoning, non-1M, is free on Devin” is currently user-reported and unverified by the installed API wrapper. Treat it as a pricing lead to verify at dispatch time, not as a hard default or confirmed zero-cost route. The same live-verification rule applies to other Devin prices.
+8. Never send credentials, broaden scope, or let multiple agents modify the same checkout. Do not merge, deploy, push, archive, or approve destructive actions without the corresponding authorization.
 
-### Sources checked on 2026-09-19
+#### Devin local CLI lane (verified from the CLI, 2026-09-17)
 
-- [OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model) — GPT-6 Astra and GPT-5.6 prompting, reasoning, tools, and migration guidance.
-- [Anthropic prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) — general Claude prompting, context, examples, XML structure, tools, thinking, and agentic guidance.
-- [Prompting Claude Fable 5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1) — effort, long-run completion, batching, history, search, and output guidance.
-- [Prompting Claude Opus 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5) — agentic coding, verbosity, effort, scope, subagents, and self-correction.
-- [Prompting Claude Sonnet 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5) — adaptive thinking, effort, tool triggering, literal instruction following, and verbosity.
+The `devin` CLI on the Mac is a third lane, distinct from the cloud handoff above, and it *does* expose model
+selection — so the one-model-per-session rule is enforceable there (rule 6 above applies only to the cloud
+handoff wrapper).
+
+- `devin -r <session-id> --model <id> -p --prompt-file <file>` resumes a named local session non-interactively;
+  without `--model` the session keeps its saved model. `devin list` / `~/.local/share/devin/cli/sessions.db`
+  hold the id, title, model and working directory. A session open in Devin Desktop holds a lock and the
+  dispatch fails with `session_locked` until that window is closed.
+- `--permission-mode`: `auto` (read-only) stalls a build task at its first write; `dangerous` auto-approves all
+  tools and is what an unattended build block needs. Ask the owner before using it.
+- Prices from `devin models list` on 2026-09-17: **SWE-2 (`swe-2-high`/`-medium`/`-max`, 262K) is Free**;
+  GLM 5.3 Flash `glm-5-3-flash-high` $0.15/$0.5 per 1M (1M context); GLM 5.2 `glm-5-2` $1.4/$4.4 per 1M — it is
+  **not** free, contrary to the earlier user-reported lead. Recheck prices with `devin models list` at dispatch.
+- Quota: `codexbar usage --provider devin`. One Prompt-41-sized block on GLM 5.2 took the daily allowance from
+  64% to 0%, so run the check before every dispatch and prefer the free tier.
+
+### Sources checked on 2026-10-03
+
+- [OpenAI latest-model guidance](https://developers.openai.com/api/docs/guides/latest-model) — model IDs, reasoning levels, tool support, and model availability.
+- [OpenAI pricing](https://developers.openai.com/api/docs/pricing?tab=suite) — current GPT-6 and GPT-5.6 input/output pricing and context-tier rules.
+- [Prompting guidance for covered models](prompting.md) — separate, dated provider guidance and model-specific prompting notes.
 - [Anthropic models overview](https://platform.claude.com/docs/en/models/overview) and [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) — current model IDs, capabilities, and direct token prices.
-- [Artificial Analysis model comparison](https://artificialanalysis.ai/models) — Intelligence Index v4.3 methodology, benchmark families, rankings, and cost-per-task views.
+- [Artificial Analysis model comparison](https://artificialanalysis.ai/models) — Intelligence Index v4.3.2 methodology, benchmark families, rankings, and cost-per-task views.
 - [Artificial Analysis model releases](https://artificialanalysis.ai/models/releases) — latest release families, category evidence, composite scores, context, and cost-per-task snapshot.
 - [OpenRouter model API](https://openrouter.ai/api/v1/models) — routed model IDs and current input/output catalog prices used for the 3:1 blended-cost column.
+- [SpaceXAI Grok 4.7](https://docs.x.ai/developers/models/grok-4.7) — model ID, modalities, context, reasoning levels, and direct pricing.
 - [Artificial Analysis GLM-5.2 analysis](https://artificialanalysis.ai/models/glm-5-2) — current model-specific score, deprecation notice, class rank, speed, context, modality, license, and direct pricing.
 - [Ollama GLM-5.3](https://ollama.com/library/glm-5.3%3Acloud) and [tags](https://ollama.com/library/glm-5.3/tags) — direct cloud token prices, context, modality, and High Usage classification.
 - [Ollama GLM-5.3 Flash](https://ollama.com/library/glm-5.3-flash) and [tags](https://ollama.com/library/glm-5.3-flash/tags) — direct cloud token prices, context, modality, and Medium Usage classification.
@@ -270,4 +205,4 @@ Hard rules:
 
 ### Limitations
 
-Scores are not interchangeable across benchmark versions, reasoning settings, providers, or harnesses. Artificial Analysis v4.3 changed benchmark components from v4.2, so score changes are not pure model regressions or improvements. OpenRouter and Ollama prices can change by provider, region, context tier, cache behavior, and availability. Ollama's usage classes are relative labels, not a conversion formula for the account's session or weekly percentage. The shortlist includes capability/value candidates without a comparable current AA composite score or routed price; those cells are explicitly marked. Validate privacy, licensing, rate limits, tool behavior, and production latency separately.
+Scores are not interchangeable across benchmark versions, reasoning settings, providers, or harnesses. Artificial Analysis v4.3.2 changed benchmark components from v4.3, so score changes are not pure model regressions or improvements. OpenRouter and Ollama prices can change by provider, region, context tier, cache behavior, and availability. Ollama's usage classes are relative labels, not a conversion formula for the account's session or weekly percentage. The shortlist includes capability/value candidates without a comparable current AA composite score or routed price; those cells are explicitly marked. Validate privacy, licensing, rate limits, tool behavior, and production latency separately.
