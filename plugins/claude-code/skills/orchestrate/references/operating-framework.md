@@ -150,6 +150,8 @@ The executor prompt must stand alone and include:
 - report-back schema, which the executor delivers as its final message; and
 - stop conditions for success, blocker, or scope mismatch.
 
+Keep routing bookkeeping in the orchestrator's routing summary, not the executor prompt. Do not send rejected model-harness comparisons, prices, quota snapshots, or routing rationale unless they materially affect executor behavior or authorization. Send the selected tools and route only when operationally relevant. Reference accessible authoritative project files instead of reproducing their contents; inline only task-specific exceptions, essential constraints, or information the executor cannot reliably access.
+
 Do not optimize the prompt into vague shorthand. The executor has none of the orchestrator's conversation and should not need hidden context to act correctly. For ACP lanes, write the prompt to a file and send it with `acp prompt <id> --file <path>`.
 
 ## Executor Report Contract

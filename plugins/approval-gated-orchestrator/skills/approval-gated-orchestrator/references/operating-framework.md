@@ -134,6 +134,8 @@ The executor prompt must stand alone and include:
 - a `Callback transport` block containing `orchestrator_thread_id` (the Codex task ID) and `orchestrator_host_id` when the environment exposes them; and
 - stop conditions for success, blocker, or scope mismatch.
 
+Keep routing bookkeeping in the orchestrator's routing summary, not the executor prompt. Do not send rejected model-harness comparisons, prices, quota snapshots, or routing rationale unless they materially affect executor behavior or authorization. Send the selected tools and route only when operationally relevant. Reference accessible authoritative project files instead of reproducing their contents; inline only task-specific exceptions, essential constraints, or information the executor cannot reliably access.
+
 Do not optimize the prompt into vague shorthand. The executor should not need hidden orchestrator context to act correctly.
 
 ## Executor Report Contract

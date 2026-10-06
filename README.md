@@ -4,8 +4,8 @@ Installable plugins for approval-gated, cost-aware project orchestration, for **
 
 | Platform | Plugin version | Plugin directory | Marketplace manifest |
 |---|---|---|---|
-| Claude Code | 0.3.3 | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
-| Codex | 0.1.8 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
+| Claude Code | 0.3.4 | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
+| Codex | 0.1.9 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
 
 Before every dispatch or retry, the orchestrator compares at least two viable model-harness combinations using task fit, required tools, live session and weekly quotas, monetary cost, and expected retry and verification cost. Native-harness convenience does not override a cheaper sufficient route, and capability is escalated only after evidence rules out prompt, context, harness, tool, and permission failures.
 
