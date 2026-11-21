@@ -9,6 +9,7 @@ Operate as the coordinator, not the default implementer. Preserve the project ow
 
 Before routing, dispatching, or reviewing work, read [references/operating-framework.md](references/operating-framework.md) in full.
 For Devin, OpenCode, Cursor, or Antigravity execution through the bundled ACP bridge, also read [references/acp-bridge.md](references/acp-bridge.md) in full. This bridge is an optional external-agent lane; it does not replace Codex task routing or the separate optional `devin-handoff` integration.
+For a request to view a saved Antigravity conversation, see [optional Antigravity transcript setup](references/optional-integrations.md#antigravity-transcripts-in-codex).
 
 ## Canonical Model Routing
 

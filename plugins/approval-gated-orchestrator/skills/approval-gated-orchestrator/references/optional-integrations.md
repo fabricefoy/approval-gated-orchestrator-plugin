@@ -1,6 +1,6 @@
 # Optional Integrations
 
-Read this reference only when evaluating a non-native route or advisor.
+Read this reference when evaluating a non-native route or advisor, or when the owner asks to view an Antigravity transcript.
 
 ## Native Codex
 
@@ -31,6 +31,28 @@ The selected Ollama models appear in Codex's model picker alongside native OpenA
 The separate [Codex CLI integration guide](https://docs.ollama.com/integrations/codex) applies to terminal-based Codex setup. It is not the macOS app model-picker path above.
 
 Do not install Ollama, start its service, sign in, alter Codex or Ollama configuration, or restore/remove an Ollama profile without explicit authorization.
+
+## Antigravity transcripts in Codex
+
+Use the optional [community Antigravity MCP bridge](https://github.com/khanhlean/codex-antigravity-mcp-plugin) to fetch visible messages and tool traces from a registered conversation into an existing Codex chat. The original session stays resumable in Antigravity. Codex's sidebar does not gain a separate Antigravity chat. Keep native ACP as the execution route and use this integration for transcript access.
+
+On macOS or Linux, follow the bridge's manual MCP setup with Node.js 20 or newer. Review its dependencies before registering it. The verified checkout was [`8dc2937`](https://github.com/khanhlean/codex-antigravity-mcp-plugin/tree/8dc29375812ad5b32c66f553334a3a0ff7e4d404), tested after updating the locked MCP SDK to 2.4.0 and Zod to 4.6.7. The original lockfile reported dependency advisories.
+
+For transcript access, add the following server to Codex's configuration. Replace the example paths with absolute paths to Node and the reviewed checkout.
+
+```toml
+[mcp_servers.agy_transcripts]
+command = "/absolute/path/to/node"
+args = ["/absolute/path/to/bridge/src/index.js"]
+cwd = "/absolute/path/to/bridge"
+required = false
+default_tools_approval_mode = "prompt"
+enabled_tools = ["antigravity_project_status", "antigravity_get_transcript"]
+```
+
+Open the Codex chat for the intended project and ask for the visible transcript by Antigravity conversation ID. The server expects that exact project to be enabled and the conversation to be registered there. Upstream project enablement changes Antigravity's workspace trust and read rules, so use it only with owner approval. Fetching an existing transcript can update the local mirror and does not start an AGY model turn.
+
+Registration is managed by the community bridge. Its public tools do not offer a transcript-only import for an arbitrary session started by this plugin's native ACP route. If it cannot find the conversation, use a transcript export or the existing `acp events` workflow. Do not modify the bridge's private registry to attach production sessions.
 
 ## OpenCode
 
