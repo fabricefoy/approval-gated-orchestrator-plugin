@@ -14,7 +14,7 @@ In the commands below, `acp` means `node "${PLUGIN_ROOT}/scripts/acp.mjs"`. The 
 
 Run `acp doctor` before choosing this lane. It checks Node.js, git, optional CodexBar, and installed agent CLIs without opening ACP handshakes. Run `acp doctor --handshake` only when explicitly needed; it starts each available ACP server for a protocol handshake and can take several minutes.
 
-An unavailable CLI is an unavailable route, not a reason to install it. The Antigravity CLI (`agy`) has no ACP server and requires the separate `acp-bridge-gate` plugin for per-tool permission checks. If the gate is missing or disabled, treat only the native `agy` route as unavailable; other bridge lanes remain usable. The gate is included here and can be installed or checked with `acp gate install` and `acp gate status` when authorized. The gate install changes the user's Antigravity configuration, so ask before running it.
+An unavailable CLI is an unavailable route, not a reason to install it.
 
 Run `acp usage --json` before comparing external lanes. The bridge asks CodexBar first, then uses provider-specific usage methods where available. A lane it cannot measure is `unknown`, never zero. `acp usage` does not start a model turn. CodexBar and provider CLIs are optional and are not installed or configured by the plugin.
 
@@ -42,6 +42,21 @@ acp wait E-model-route-project --timeout 540
 ```
 
 `acp prompt` starts a turn and returns. `acp wait` prints events and reports `idle`, `awaiting_permission`, or still working. Repeat `acp wait` after a timeout; do not resend the prompt. The bridge has no verified automatic callback into Codex. An `acp wait` result is evidence about the external session, not a callback message and not owner authorization.
+
+### Antigravity
+
+For new Antigravity sessions, prefer [Google's native ACP server](https://antigravity.google/docs/cli/acp) with `agy` 1.5.0 or newer and an existing sign-in. `agy acp --help` checks availability without starting a model turn. If authentication is needed, the owner can sign in with `agy acp --login`.
+
+```bash
+acp start agy-native --name E-antigravity-project --title "E|Gemini 4 Neon [Low]|Google|Antigravity" --cwd /path/to/project --worktree --policy ask --model gemini-4-neon --effort low
+acp options E-antigravity-project
+```
+
+Use the actual model, effort, and provider route in the title. Antigravity reports model and effort as separate ACP options (`model` and `thought_level`). The bridge saves the confirmed values and restores them before accepting another prompt on resume. Record the bridge name and Antigravity session ID from `acp status`, and use `acp start agy-native --name E-antigravity-project --resume` to reuse the stopped session. Check the approved mode and settings before dispatch, since native Antigravity settings affect which actions reach the bridge for approval.
+
+The print-mode command remains `acp start agy` and requires the bundled `acp-bridge-gate` hook to be installed and enabled. Check it with `acp gate status`. Keep the original route when resuming by bridge name.
+
+Use `acp events` to read the current run's visible transcript in Codex. Save a copy before restarting the bridge if you need a project artifact. The resumable conversation lives in Antigravity.
 
 ## Permission requests
 

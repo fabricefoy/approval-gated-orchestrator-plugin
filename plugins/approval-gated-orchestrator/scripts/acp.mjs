@@ -8,7 +8,7 @@
 // line). agy has no ACP server, so it runs one print-mode process per turn, gated by a hook.
 // No dependencies; Node >= 20.
 
-import { spawn, execFile, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import http from 'node:http';
 import net from 'node:net';
 import fs from 'node:fs';
@@ -62,6 +62,7 @@ const AGENTS = {
   opencode: () => ({ cmd: which('opencode'), args: ['acp'] }),
   cursor: cursorCommand,
   agy: () => ({ cmd: which('agy'), args: [] }),
+  'agy-native': () => ({ cmd: which('agy'), args: ['acp', '--sandbox'] }),
 };
 
 // Agents only send session/request_permission for what their own harness gates, so each
@@ -76,7 +77,7 @@ function policyEnv(agent, policy) {
   const p = policy === 'yolo' ? 'allow' : 'ask';
   return { OPENCODE_CONFIG_CONTENT: JSON.stringify({ permission: { edit: p, bash: p, webfetch: 'allow' } }) };
 }
-const DEFAULT_MODE = { cursor: { 'read-only': 'ask' }, devin: { 'read-only': 'ask', yolo: 'bypass' } };
+const DEFAULT_MODE = { 'agy-native': { 'read-only': 'plan', ask: 'default' }, cursor: { 'read-only': 'ask' }, devin: { 'read-only': 'ask', yolo: 'bypass' } };
 
 // ---------------------------------------------------------------- session files
 
@@ -390,10 +391,20 @@ function acpDriver({ cfg, state, log, save, errFd, requestPermission }) {
     } else if (configId === 'mode') await request('session/set_mode', { sessionId: state.sessionId, modeId: value });
     else if (configId === 'model') await request('session/set_model', { sessionId: state.sessionId, modelId: value });
     else throw new Error(`agent has no config option '${configId}'`);
+    if (cfg.agent === 'agy-native' && ['model', 'thought_level', 'mode'].includes(configId)) {
+      if (state.config?.[configId]?.current !== value)
+        throw new Error(`Antigravity did not confirm ${configId}=${value}`);
+      if (state.status !== 'starting') saveAgySettings();
+    }
     log('config', { configId, value });
     save();
     return value;
   };
+
+  function saveAgySettings() {
+    cfg.savedAgy = Object.fromEntries(['model', 'thought_level', 'mode'].map(key => [key, state.config?.[key]?.current]));
+    writeJson(path.join(sessDir(cfg.id), 'config.json'), cfg);
+  }
 
   const onUpdate = u => {
     if (replaying) { replaying++; if (u.sessionUpdate === 'config_option_update') setOptions(u.configOptions); return; }
@@ -537,7 +548,7 @@ function acpDriver({ cfg, state, log, save, errFd, requestPermission }) {
       try {
         sess = await newSession();
       } catch (e) {
-        if (!init?.authMethods?.length) throw e;
+        if (cfg.agent === 'agy-native' || !init?.authMethods?.length) throw e;
         log('auth', { methodId: init.authMethods[0].id, reason: e.message });
         await request('authenticate', { methodId: init.authMethods[0].id });
         sess = await newSession();
@@ -547,9 +558,28 @@ function acpDriver({ cfg, state, log, save, errFd, requestPermission }) {
       setOptions(sess.configOptions);
       if (!state.config.mode && sess.modes) state.config.mode = { current: sess.modes.currentModeId, values: sess.modes.availableModes.map(m => m.id) };
       if (!state.config.model && sess.models) state.config.model = { current: sess.models.currentModelId, values: sess.models.availableModels.map(m => m.modelId) };
-      const mode = cfg.mode || DEFAULT_MODE[cfg.agent]?.[cfg.policy];
-      if (mode) await setConfig('mode', mode);
-      if (cfg.model) await setConfig('model', cfg.model);
+      if (cfg.agent === 'agy-native') {
+        const wanted = {
+          model: cfg.model ?? cfg.savedAgy?.model,
+          thought_level: cfg.effort ?? cfg.savedAgy?.thought_level,
+          mode: cfg.mode ?? cfg.savedAgy?.mode ?? DEFAULT_MODE[cfg.agent]?.[cfg.policy],
+        };
+        for (const [key, value] of Object.entries(wanted)) {
+          if (value == null) continue;
+          if (!state.config[key]?.values.includes(value))
+            throw new Error(`Antigravity does not offer the exact ${key} value '${value}'`);
+          if (state.config[key].current !== value) await setConfig(key, value);
+        }
+        for (const [key, value] of Object.entries(wanted)) {
+          if (value != null && state.config[key]?.current !== value)
+            throw new Error(`Antigravity did not restore ${key}=${value}`);
+        }
+        saveAgySettings();
+      } else {
+        const mode = cfg.mode || DEFAULT_MODE[cfg.agent]?.[cfg.policy];
+        if (mode) await setConfig('mode', mode);
+        if (cfg.model) await setConfig('model', cfg.model);
+      }
     },
     async prompt(text) {
       return request('session/prompt', { sessionId: state.sessionId, prompt: [{ type: 'text', text }] });
@@ -800,7 +830,7 @@ function render(evts, { thoughts = false } = {}) {
 
 // ---------------------------------------------------------------- doctor
 
-const VERSION_ARGS = { devin: ['version'], opencode: ['--version'], cursor: ['--version'], agy: ['--version'] };
+const VERSION_ARGS = { devin: ['version'], opencode: ['--version'], cursor: ['--version'], agy: ['--version'], 'agy-native': ['--version'] };
 
 async function doctor(flags) {
   let ok = true;
@@ -818,6 +848,14 @@ async function doctor(flags) {
     const vArgs = name === 'cursor' && r.args.length > 1 ? [r.args[0], ...VERSION_ARGS.cursor] : VERSION_ARGS[name];
     let ver = '?';
     try { ver = execFileSync(r.cmd, vArgs, { encoding: 'utf8', timeout: 30000, env: { ...process.env, ...r.env }, windowsHide: true }).trim().split(/\r?\n/).pop(); } catch { /* keep '?' */ }
+    if (name === 'agy-native') {
+      const help = spawnSync(r.cmd, ['acp', '--help'], { encoding: 'utf8', timeout: 5000, windowsHide: true });
+      if (help.status !== 0 || !`${help.stdout}\n${help.stderr}`.includes('Usage: agy acp')) {
+        line(null, name, 'native ACP unavailable (requires agy 1.5.0+)');
+        found--;
+        continue;
+      }
+    }
     let hs = '';
     if (flags.handshake && name !== 'agy') {
       const t0 = Date.now();
@@ -1099,6 +1137,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function cmdStart({ pos, flags, passthrough }) {
   const agent = pos[0];
   if (!AGENTS[agent]) throw new Error(`agent must be one of: ${Object.keys(AGENTS).join(', ')}`);
+  if (agent === 'agy-native' && passthrough.some(arg => /^--dangerously-skip-permissions(?:=|$)/.test(arg))) {
+    throw new Error('do not bypass Antigravity permissions; use the approved bridge policy');
+  }
   if (agent === 'agy') {
     const g = gateStatus();
     if (!g.installed || !g.enabled) throw new Error('agy sessions need the Antigravity gate plugin, which routes every agy tool call through the bridge; run: acp gate install');
@@ -1107,7 +1148,10 @@ async function cmdStart({ pos, flags, passthrough }) {
   if (fs.existsSync(sessDir(id)) && alive(readJson(path.join(sessDir(id), 'state.json'), {}).pid))
     throw new Error(`session '${id}' already running`);
   const prev = { cfg: readJson(path.join(sessDir(id), 'config.json'), {}), state: readJson(path.join(sessDir(id), 'state.json'), {}) };
-  const resume = flags.resume === true ? prev.state.sessionId : flags.resume;
+  const previousId = prev.state.sessionId ?? prev.cfg.resume;
+  const resume = flags.resume === true ? previousId : flags.resume;
+  if (flags.resume === true && prev.cfg.agent && prev.cfg.agent !== agent)
+    throw new Error(`session '${id}' uses ${prev.cfg.agent}; resume with that route`);
   if (flags.resume === true && !resume) throw new Error(`--resume: no previous agent session recorded for '${id}'`);
   // A resumed session keeps its previous settings unless they are overridden.
   const inherit = resume && prev.cfg.agent === agent ? prev.cfg : {};
@@ -1128,7 +1172,10 @@ async function cmdStart({ pos, flags, passthrough }) {
   for (const f of ['events.jsonl', 'stderr.log', 'state.json']) fs.rmSync(path.join(sessDir(id), f), { force: true });
   writeJson(path.join(sessDir(id), 'config.json'), {
     id, agent, cwd, policy, resume,
-    mode: flags.mode || inherit.mode, model: flags.model || inherit.model,
+    mode: flags.mode || (agent !== 'agy-native' ? inherit.mode : undefined),
+    model: flags.model || (agent !== 'agy-native' ? inherit.model : undefined),
+    effort: flags.effort,
+    savedAgy: agent === 'agy-native' && resume === previousId ? inherit.savedAgy : undefined,
     title: flags.title || prev.cfg.title,
     agentArgs: passthrough.length ? passthrough : inherit.agentArgs || [],
     token: crypto.randomBytes(16).toString('hex'), worktree: !!flags.worktree || !!inherit.worktree,
@@ -1180,7 +1227,7 @@ const HELP = `acp - drive coding agents (devin | opencode | cursor over ACP, agy
 
   acp start <agent> [--name ID] [--title TEXT] [--cwd DIR] [--worktree [NAME]] [--base REF]
                     [--resume [AGENT_SESSION_ID]]   (reload a stopped session's history; bare flag = last one for --name)
-                    [--policy ask|edits|read-only|yolo] [--mode M] [--model M] [-- agent args]
+                    [--policy ask|edits|read-only|yolo] [--mode M] [--model M] [--effort LEVEL] [-- agent args]
   acp prompt <id> <text...> [--file F] [--wait] [--timeout SEC]
   acp wait <id> [--since SEQ] [--timeout SEC] [--thoughts]
   acp events <id> [--since SEQ] [--thoughts] [--raw]

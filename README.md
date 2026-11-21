@@ -5,7 +5,7 @@ Installable plugins for approval-gated, cost-aware project orchestration, for **
 | Platform | Plugin version | Plugin directory | Marketplace manifest |
 |---|---|---|---|
 | Claude Code | 0.3.4 | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
-| Codex | 0.1.9 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
+| Codex | 0.1.10 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
 
 Before every dispatch or retry, the orchestrator compares at least two viable model-harness combinations using task fit, required tools, live session and weekly quotas, monetary cost, and expected retry and verification cost. Native-harness convenience does not override a cheaper sufficient route, and capability is escalated only after evidence rules out prompt, context, harness, tool, and permission failures.
 
@@ -17,7 +17,7 @@ Before every dispatch or retry, the orchestrator compares at least two viable mo
 - `/approval-gated-orchestrator:model-routing-refresh`: refreshes a user- or project-owned copy of the dated routing guide when explicitly authorized.
 - `/approval-gated-orchestrator:setup`: checks Node.js, git, and the agent CLIs, and explains how to fix what's missing.
 - `acp` (`scripts/acp.mjs`, with `bin/acp` and `bin/acp.cmd` shortcuts): a dependency-free Node.js agent bridge. The skills call it through `${CLAUDE_PLUGIN_ROOT}`, so it works whether or not the plugin's `bin/` is on `PATH`. It starts agent sessions (optionally in git worktrees), sends prompts, streams tool calls, and lets the orchestrator approve or deny each permission request.
-- `agy-gate/`: an Antigravity plugin (`acp gate install`) whose PreToolUse hook routes every `agy` tool call through the bridge during bridge sessions, and does nothing otherwise. `agy` has no ACP server, so this is what gives it the same per-action approvals as the other agents.
+- `agy-gate/`: the hook used by the Claude Code package's headless Antigravity route. It routes `agy` tool calls through the bridge during those sessions and does nothing otherwise.
 
 ## Install
 
@@ -82,6 +82,8 @@ CodexBar is deliberately not bundled. It is a separately versioned app and CLI w
 ## Optional external-agent lanes
 
 The bundled ACP bridge is a local client for external agent CLIs, not a Codex task executor or automatic callback transport. Inspect external session results with `acp wait`; continue polling manually if a turn is still active. It preserves the frozen prompt, route, model, egress, worktree, and permission-policy gates. Devin ACP is separate from the optional `devin-handoff` integration.
+
+For Antigravity, install and sign in to [Google's Antigravity CLI](https://antigravity.google/docs/cli/acp) (1.5.0 or newer). Use the [Antigravity session example](plugins/approval-gated-orchestrator/skills/approval-gated-orchestrator/references/acp-bridge.md#antigravity) to connect directly through `agy acp`. The gated print-mode route remains available as a fallback.
 
 When `codexbar` is already installed and configured, the skill may read provider usage with commands such as:
 
