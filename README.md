@@ -5,7 +5,7 @@ Installable plugins for approval-gated, cost-aware project orchestration, for **
 | Platform | Plugin version | Plugin directory | Marketplace manifest |
 |---|---|---|---|
 | Claude Code | 0.3.4 | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
-| Codex | 0.1.11 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
+| Codex | 0.1.12 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
 
 Before every dispatch or retry, the orchestrator compares at least two viable model-harness combinations using task fit, required tools, live session and weekly quotas, monetary cost, and expected retry and verification cost. Native-harness convenience does not override a cheaper sufficient route, and capability is escalated only after evidence rules out prompt, context, harness, tool, and permission failures.
 
@@ -67,6 +67,7 @@ node plugins/claude-code/scripts/acp.mjs doctor --handshake
 ## Included
 
 - `$approval-gated-orchestrator`: prepares frozen executor prompts, selects a route, reuses matching tasks, and verifies reports.
+- `$concil`: convenes read-only model advisors and combines their findings for a single decision.
 - `$model-routing-refresh`: refreshes a user- or project-owned copy of the dated routing guide when explicitly authorized.
 - `$prompting-refresh`: refreshes a separate user- or project-owned guide for explicitly covered models when authorized.
 - `$setup`: diagnoses local external-agent lanes without installing or configuring providers.
