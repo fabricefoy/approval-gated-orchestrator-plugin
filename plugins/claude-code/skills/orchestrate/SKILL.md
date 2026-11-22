@@ -18,6 +18,8 @@ Before routing, dispatching, or reviewing work, read [references/operating-frame
 
 Antigravity models are also reachable through OpenCode (route `Antigravity`, platform `OpenCode`) when the owner's OpenCode has the antigravity-auth plugin; that lane uses OpenCode's agent and ACP approvals. Choose the native `agy` lane when Antigravity's own agent and tools are the point.
 
+For advisor panels — read-only second opinions with structured exchanges — use the [concil skill](../concil/SKILL.md).
+
 Run `acp doctor` once per session before choosing a bridge lane. A missing CLI is an unavailable lane, not something to install. The `/approval-gated-orchestrator:setup` skill covers installation when the owner asks for it.
 
 ## Canonical Model Routing

@@ -4,7 +4,7 @@ Installable plugins for approval-gated, cost-aware project orchestration, for **
 
 | Platform | Plugin version | Plugin directory | Marketplace manifest |
 |---|---|---|---|
-| Claude Code | 0.3.4 | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
+| Claude Code | 0.3.5 | [`plugins/claude-code`](plugins/claude-code) | [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) |
 | Codex | 0.1.12 | [`plugins/approval-gated-orchestrator`](plugins/approval-gated-orchestrator) | [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json) |
 
 Before every dispatch or retry, the orchestrator compares at least two viable model-harness combinations using task fit, required tools, live session and weekly quotas, monetary cost, and expected retry and verification cost. Native-harness convenience does not override a cheaper sufficient route, and capability is escalated only after evidence rules out prompt, context, harness, tool, and permission failures.
@@ -14,6 +14,7 @@ Before every dispatch or retry, the orchestrator compares at least two viable mo
 ## Included
 
 - `/approval-gated-orchestrator:orchestrate`: plans, routes, and dispatches one bounded task at a time, then verifies the report. Executors are Claude Code subagents, **Devin, OpenCode and Cursor agents driven over ACP** (Agent Client Protocol), or the **Antigravity CLI (`agy`)**.
+- `/approval-gated-orchestrator:concil`: convenes read-only model advisors and combines their findings for a single decision.
 - `/approval-gated-orchestrator:model-routing-refresh`: refreshes a user- or project-owned copy of the dated routing guide when explicitly authorized.
 - `/approval-gated-orchestrator:setup`: checks Node.js, git, and the agent CLIs, and explains how to fix what's missing.
 - `acp` (`scripts/acp.mjs`, with `bin/acp` and `bin/acp.cmd` shortcuts): a dependency-free Node.js agent bridge. The skills call it through `${CLAUDE_PLUGIN_ROOT}`, so it works whether or not the plugin's `bin/` is on `PATH`. It starts agent sessions (optionally in git worktrees), sends prompts, streams tool calls, and lets the orchestrator approve or deny each permission request.
